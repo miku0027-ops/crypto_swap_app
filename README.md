@@ -62,6 +62,8 @@ The demo keeps sample prices, balances, and activity in browser storage. Those r
 
 The deployment configuration targets Firebase project **`hoplane-b9ac1`**:
 
+After authenticated access and the [one-time provisioning](docs/BACKEND.md#provision-once), run `bash scripts/deploy-firebase.sh`. It checks the fixed project, billing and existing resources, builds the app and a tested immutable container, deploys Firestore rules/indexes/TTL, deploys Cloud Run, publishes Hosting, and checks the published API. The tracked `deploy/cloudrun.firebase.yaml` contains non-secret initial settings with fund execution disabled. Cloud source uploads exclude local environments and build outputs via `.gcloudignore`. The script does not create billing accounts, provision missing resources, obtain credentials, or configure Relay/RPC secrets.
+
 - Firebase Hosting serves the SPA and forwards `/api/**` to Cloud Run service `hoplane-api` in `asia-south1`.
 - The non-root Node 24 container builds/tests the project, serves the API and SPA, and requires Firestore in production.
 - Firestore browser access is denied; the backend uses a dedicated runtime service account through Application Default Credentials.

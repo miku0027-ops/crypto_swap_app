@@ -1,0 +1,17 @@
+# Non-secret first-deployment configuration. Provider credentials belong in Secret Manager.
+NODE_ENV: production
+STORE_DRIVER: firestore
+FIREBASE_PROJECT_ID: hoplane-b9ac1
+APP_ORIGIN: https://hoplane-b9ac1.web.app
+ALLOWED_ORIGINS: https://hoplane-b9ac1.web.app
+ENABLE_MAINNET: "false"
+ENABLE_EXECUTION: "false"
+ALLOWED_MAINNET_CHAINS: "1,8453,42161,10,137,56,43114,534352,324"
+ALLOWED_TESTNET_CHAINS: "11155111,84532"
+ALLOWED_TRANSACTION_TARGETS_JSON: "{}"
+AUTH_CHAIN_ID: "1"
+SESSION_TTL_MS: "86400000"
+QUOTE_TTL_MS: "30000"
+MAX_SLIPPAGE_BPS: "300"
+RELAY_TIMEOUT_MS: "10000"
+TRUST_PROXY_HOPS: "0"

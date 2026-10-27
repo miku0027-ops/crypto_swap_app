@@ -25,28 +25,28 @@ The final command serves the built SPA and API from `http://localhost:8080` in d
 
 ## Configuration
 
-| Variable | Default / meaning |
-| --- | --- |
-| `NODE_ENV` | `development`; use `production` on Cloud Run. |
-| `HOST`, `PORT` | `0.0.0.0`, `8080`; Cloud Run supplies its port. |
-| `APP_ORIGIN` | `http://localhost:5173`; exact canonical website origin used in the SIWE domain and URI. |
-| `ALLOWED_ORIGINS` | Local app origin; explicit comma-separated HTTPS origins required in production. Must include `APP_ORIGIN`; no wildcards. |
-| `STORE_DRIVER` | `sqlite` locally, `firestore` in production. Production explicitly rejects SQLite. |
-| `DATABASE_PATH` | `./.data/hoplane.sqlite`; local persistent database. |
-| `FIREBASE_PROJECT_ID` | Required with Firestore; deployment target is `hoplane-b9ac1`. |
-| `RELAY_API_KEY` | Unset. Required for live quotes; never exposed through `/api/config`. |
-| `RELAY_TIMEOUT_MS` | `10000`; range 500–30000. |
-| `QUOTE_TTL_MS` | `30000`; range 5000–60000. Effective quote expiry is checked before preparing execution. |
-| `MAX_SLIPPAGE_BPS` | `300` (3%); hard server ceiling, range 0–1000. Users can request lower values. |
-| `SESSION_TTL_MS` | `86400000` (24 hours); range 5 minutes–7 days. |
-| `AUTH_CHAIN_ID` | `1`; must match the authentication challenge. This is not a transaction network selector. |
-| `ENABLE_MAINNET` | `false`. Mainnet requests are rejected until explicitly enabled. |
-| `ENABLE_EXECUTION` | `false`. Enabling requires a Relay key and at least one reviewed transaction target; each route also requires RPC verification. |
-| `ALLOWED_MAINNET_CHAINS` | `1,8453,42161,10,137,56,43114,534352,324`; intersected with current provider EVM metadata. |
-| `ALLOWED_TESTNET_CHAINS` | `11155111,84532`; candidate testnets, not a guarantee of route/liquidity support. |
-| `ALLOWED_TRANSACTION_TARGETS_JSON` | `{}`; map of numeric chain IDs to reviewed deposit addresses. Empty means no deposit execution is approved. |
-| `RPC_URLS_JSON` | `{}`; map of numeric chain IDs to operator-owned RPC URLs. HTTPS required in production; credential-bearing URLs are secrets. |
-| `TRUST_PROXY_HOPS` | `0`; integer 0–2. Change only after verifying the complete ingress path and preventing shorter untrusted paths. |
+| Variable                           | Default / meaning                                                                                                               |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                         | `development`; use `production` on Cloud Run.                                                                                   |
+| `HOST`, `PORT`                     | `0.0.0.0`, `8080`; Cloud Run supplies its port.                                                                                 |
+| `APP_ORIGIN`                       | `http://localhost:5173`; exact canonical website origin used in the SIWE domain and URI.                                        |
+| `ALLOWED_ORIGINS`                  | Local app origin; explicit comma-separated HTTPS origins required in production. Must include `APP_ORIGIN`; no wildcards.       |
+| `STORE_DRIVER`                     | `sqlite` locally, `firestore` in production. Production explicitly rejects SQLite.                                              |
+| `DATABASE_PATH`                    | `./.data/hoplane.sqlite`; local persistent database.                                                                            |
+| `FIREBASE_PROJECT_ID`              | Required with Firestore; deployment target is `hoplane-b9ac1`.                                                                  |
+| `RELAY_API_KEY`                    | Unset. Required for live quotes; never exposed through `/api/config`.                                                           |
+| `RELAY_TIMEOUT_MS`                 | `10000`; range 500–30000.                                                                                                       |
+| `QUOTE_TTL_MS`                     | `30000`; range 5000–60000. Effective quote expiry is checked before preparing execution.                                        |
+| `MAX_SLIPPAGE_BPS`                 | `300` (3%); hard server ceiling, range 0–1000. Users can request lower values.                                                  |
+| `SESSION_TTL_MS`                   | `86400000` (24 hours); range 5 minutes–7 days.                                                                                  |
+| `AUTH_CHAIN_ID`                    | `1`; must match the authentication challenge. This is not a transaction network selector.                                       |
+| `ENABLE_MAINNET`                   | `false`. Mainnet requests are rejected until explicitly enabled.                                                                |
+| `ENABLE_EXECUTION`                 | `false`. Enabling requires a Relay key and at least one reviewed transaction target; each route also requires RPC verification. |
+| `ALLOWED_MAINNET_CHAINS`           | `1,8453,42161,10,137,56,43114,534352,324`; intersected with current provider EVM metadata.                                      |
+| `ALLOWED_TESTNET_CHAINS`           | `11155111,84532`; candidate testnets, not a guarantee of route/liquidity support.                                               |
+| `ALLOWED_TRANSACTION_TARGETS_JSON` | `{}`; map of numeric chain IDs to reviewed deposit addresses. Empty means no deposit execution is approved.                     |
+| `RPC_URLS_JSON`                    | `{}`; map of numeric chain IDs to operator-owned RPC URLs. HTTPS required in production; credential-bearing URLs are secrets.   |
+| `TRUST_PROXY_HOPS`                 | `0`; integer 0–2. Change only after verifying the complete ingress path and preventing shorter untrusted paths.                 |
 
 `VITE_API_BASE_URL` is optional public browser configuration, default `/api`. Keep the same-origin default for Firebase Hosting and the combined Node server. Cross-origin requests include credentials, but the cookie is `SameSite=Lax`; unrelated sites cannot be made compatible merely by adding a CORS origin. Native/extension clients need an explicit authentication design rather than relaxing these protections.
 
@@ -70,34 +70,34 @@ Sessions, quotes, transfers, and preferences are scoped to the verified wallet a
 
 All paths start with `/api`. Authenticated POST/PUT operations require `X-CSRF-Token`. Every POST/PUT, including public authentication/metadata requests, requires an allowed `Origin` and `Content-Type: application/json`.
 
-| Method/path | Purpose | Authentication |
-| --- | --- | --- |
-| `GET /health` | Process liveness. | Public |
-| `GET /ready` | Storage readiness and capability indicators. | Public |
-| `GET /config` | Feature flags, chain IDs, policy limits, auth chain, server time; no secrets. | Public |
-| `GET /developer/status` | Deployment profile, configured capabilities and candidate testnet IDs. Reports configuration, not upstream health. | Public |
-| `GET /developer/openapi.json` | OpenAPI 3.1 discovery document for every current route, auth policy and illustrative request shapes. Detailed field validation remains in the server contract. | Public |
-| `GET /transactions` | Latest 50 validated public Relay network requests; fixed provider query, no owner or URL parameters. | Public |
-| `GET /transactions/stream` | Bounded SSE snapshot stream; heartbeat, error events, reconnection and per-IP connection limits. | Public |
-| `GET /chains?network=testnet` | Current allowed EVM chain metadata. | Public |
-| `GET /vaults` | Fixed, validated public vault catalog; wind-down metadata, no deposit execution. | Public |
-| `GET /vaults/positions` | Indexed vault shares belonging only to the signed-in wallet. No arbitrary owner query. | Cookie |
-| `GET /account/app-balance` | Integrator app-fee/sponsorship balances for the signed-in wallet, from Relay mainnet. | Cookie |
-| `GET /account/recovery-balances?ownerChainId=1` | First 20 Relay mainnet Hub recovery balances for the signed-in owner account; explicit owner-chain ID, `hasMore` indication. | Cookie |
-| `POST /currencies` | `{network, search: {chainIds, term?, address?, limit?}}`; verified provider token search. | Public |
-| `POST /auth/challenge` | `{address, chainId}` → `{challengeId, message, expiresAt}`. | Public |
-| `POST /auth/verify` | `{challengeId, signature}` → session JSON plus cookie. | Public |
-| `GET /auth/session` | Current session or `{user:null}`. | Cookie if present |
-| `POST /auth/logout` | `{}`; revoke session. | Cookie + CSRF |
-| `GET /preferences` | Settings, favorites, version. | Cookie |
-| `PUT /preferences` | `{version, settings, favorites}`; compare-and-set. | Cookie + CSRF |
-| `POST /quotes` | `{network, quote}`; validated provider quote. `/relay/quote` is an alias. | Cookie + CSRF |
-| `POST /quotes/:id/prepare` | `{}` plus UUID `Idempotency-Key`; create/resume one transfer. | Cookie + CSRF |
-| `POST /transfers/:id/authorize` | `{stepIndex}`; recheck execution policy and reserve this wallet submission once across devices. | Cookie + CSRF |
-| `POST /transfers/:id/transactions` | `{transactionHash, stepIndex}`; verify a broadcast transaction against its stored step. | Cookie + CSRF |
-| `GET /transfers` | Latest 50 transfers for the signed-in wallet. | Cookie |
-| `GET /transfers/:id` | Owned transfer with bounded provider status refresh. | Cookie |
-| `POST /balances` | `{network, chainId, currencies:[address]}`; up to 20 assets for the signed-in address. | Cookie + CSRF |
+| Method/path                                     | Purpose                                                                                                                                                        | Authentication    |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| `GET /health`                                   | Process liveness.                                                                                                                                              | Public            |
+| `GET /ready`                                    | Storage readiness and capability indicators.                                                                                                                   | Public            |
+| `GET /config`                                   | Feature flags, chain IDs, policy limits, auth chain, server time; no secrets.                                                                                  | Public            |
+| `GET /developer/status`                         | Deployment profile, configured capabilities and candidate testnet IDs. Reports configuration, not upstream health.                                             | Public            |
+| `GET /developer/openapi.json`                   | OpenAPI 3.1 discovery document for every current route, auth policy and illustrative request shapes. Detailed field validation remains in the server contract. | Public            |
+| `GET /transactions`                             | Latest 50 validated public Relay network requests; fixed provider query, no owner or URL parameters.                                                           | Public            |
+| `GET /transactions/stream`                      | Bounded SSE snapshot stream; heartbeat, error events, reconnection and per-IP connection limits.                                                               | Public            |
+| `GET /chains?network=testnet`                   | Current allowed EVM chain metadata.                                                                                                                            | Public            |
+| `GET /vaults`                                   | Fixed, validated public vault catalog; wind-down metadata, no deposit execution.                                                                               | Public            |
+| `GET /vaults/positions`                         | Indexed vault shares belonging only to the signed-in wallet. No arbitrary owner query.                                                                         | Cookie            |
+| `GET /account/app-balance`                      | Integrator app-fee/sponsorship balances for the signed-in wallet, from Relay mainnet.                                                                          | Cookie            |
+| `GET /account/recovery-balances?ownerChainId=1` | First 20 Relay mainnet Hub recovery balances for the signed-in owner account; explicit owner-chain ID, `hasMore` indication.                                   | Cookie            |
+| `POST /currencies`                              | `{network, search: {chainIds, term?, address?, limit?}}`; verified provider token search.                                                                      | Public            |
+| `POST /auth/challenge`                          | `{address, chainId}` → `{challengeId, message, expiresAt}`.                                                                                                    | Public            |
+| `POST /auth/verify`                             | `{challengeId, signature}` → session JSON plus cookie.                                                                                                         | Public            |
+| `GET /auth/session`                             | Current session or `{user:null}`.                                                                                                                              | Cookie if present |
+| `POST /auth/logout`                             | `{}`; revoke session.                                                                                                                                          | Cookie + CSRF     |
+| `GET /preferences`                              | Settings, favorites, version.                                                                                                                                  | Cookie            |
+| `PUT /preferences`                              | `{version, settings, favorites}`; compare-and-set.                                                                                                             | Cookie + CSRF     |
+| `POST /quotes`                                  | `{network, quote}`; validated provider quote. `/relay/quote` is an alias.                                                                                      | Cookie + CSRF     |
+| `POST /quotes/:id/prepare`                      | `{}` plus UUID `Idempotency-Key`; create/resume one transfer.                                                                                                  | Cookie + CSRF     |
+| `POST /transfers/:id/authorize`                 | `{stepIndex}`; recheck execution policy and reserve this wallet submission once across devices.                                                                | Cookie + CSRF     |
+| `POST /transfers/:id/transactions`              | `{transactionHash, stepIndex}`; verify a broadcast transaction against its stored step.                                                                        | Cookie + CSRF     |
+| `GET /transfers`                                | Latest 50 transfers for the signed-in wallet.                                                                                                                  | Cookie            |
+| `GET /transfers/:id`                            | Owned transfer with bounded provider status refresh.                                                                                                           | Cookie            |
+| `POST /balances`                                | `{network, chainId, currencies:[address]}`; up to 20 assets for the signed-in address.                                                                         | Cookie + CSRF     |
 
 Quote input contains `user`, origin/destination chain IDs, origin/destination currency addresses, `amount` as an integer **base-unit string**, `tradeType`, and optional recipient/slippage/destination-gas settings. The live UI uses `EXACT_INPUT`; the backend validates both provider trade types. Slippage is a basis-point string (`"50"` = 0.5%), never a decimal percentage. Token decimals come from chain-specific metadata. Unknown fields and malformed numeric strings are rejected.
 
@@ -121,21 +121,21 @@ Provider tracking starts only after a source hash is verified. Success/refund re
 
 The default fixed-window limits below are atomic in the shared store, so they apply across Cloud Run instances. They are service protection settings, not a guarantee of capacity or resistance to every abuse pattern.
 
-| Scope | Default per minute |
-| --- | --- |
-| All API requests, per resolved IP (health/readiness exempt) | 180 |
-| Authentication challenge + verification, shared per IP | 15 |
-| Quote requests, per wallet / global provider budget | 12 / 45 |
-| Transfer preparation, per wallet | 12 |
-| Wallet submission authorization, per wallet | 12 |
-| Submitted-hash tracking writes, per wallet | 45 |
-| Provider status refresh, per wallet / globally | 45 / 150 |
-| Actual provider metadata requests, globally | 100 |
-| Actual Relay API requests, globally (including account resources and vault USD pricing; vault GraphQL index separate) | 240 |
-| Preferences writes, per wallet | 30 |
-| Balance reads, per wallet | 20 |
-| App/recovery balance reads combined, per wallet / actual upstream globally | 20 / 40 |
-| Vault position requests, per wallet / actual vault upstream globally | 20 / 60 |
+| Scope                                                                                                                 | Default per minute |
+| --------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| All API requests, per resolved IP (health/readiness exempt)                                                           | 180                |
+| Authentication challenge + verification, shared per IP                                                                | 15                 |
+| Quote requests, per wallet / global provider budget                                                                   | 12 / 45            |
+| Transfer preparation, per wallet                                                                                      | 12                 |
+| Wallet submission authorization, per wallet                                                                           | 12                 |
+| Submitted-hash tracking writes, per wallet                                                                            | 45                 |
+| Provider status refresh, per wallet / globally                                                                        | 45 / 150           |
+| Actual provider metadata requests, globally                                                                           | 100                |
+| Actual Relay API requests, globally (including account resources and vault USD pricing; vault GraphQL index separate) | 240                |
+| Preferences writes, per wallet                                                                                        | 30                 |
+| Balance reads, per wallet                                                                                             | 20                 |
+| App/recovery balance reads combined, per wallet / actual upstream globally                                            | 20 / 40            |
+| Vault position requests, per wallet / actual vault upstream globally                                                  | 20 / 60            |
 
 Metadata caches last 60 seconds for chains and 30 seconds for currency search, coalesce identical in-flight requests, and keep a bounded entry count. Cache hits do not consume provider request budgets. Quotes are not cached across users. Provider status polls reuse a transfer updated within four seconds. RPC chain identity is checked and cached briefly; balance requests use a bounded batch with independent token failures. Application requests have a 32 KiB body limit; upstream response readers are bounded (Relay 2 MiB, RPC 1 MiB) and timed out.
 
@@ -161,14 +161,14 @@ The Vaults screen restores an existing session or signs in inline. It checks the
 
 Documents live in `hoplane_*` collections. Payloads use a private JSON envelope with indexed `owner` and `createdAt` metadata, numeric logical `expiresAt`, and a Firestore Timestamp `ttl` for eventual deletion. Client rules deny all reads and writes; the Admin SDK uses IAM and bypasses those rules. Do not expose an Admin credential or use these rules as a substitute for backend ownership checks.
 
-| Collection | Retention |
-| --- | --- |
-| `hoplane_auth_challenges` | Five-minute challenge deadline; consumed once. |
-| `hoplane_sessions` | Configured session TTL, 24 hours by default. |
-| `hoplane_rate_limits` | Window end; normally one minute. |
-| `hoplane_quotes` | Stored 24 hours for workflow references; execution expires much earlier. |
-| `hoplane_transfers` | 90 days from creation, including updates. |
-| `hoplane_preferences` | Retained until explicitly removed by account administration. |
+| Collection                | Retention                                                                |
+| ------------------------- | ------------------------------------------------------------------------ |
+| `hoplane_auth_challenges` | Five-minute challenge deadline; consumed once.                           |
+| `hoplane_sessions`        | Configured session TTL, 24 hours by default.                             |
+| `hoplane_rate_limits`     | Window end; normally one minute.                                         |
+| `hoplane_quotes`          | Stored 24 hours for workflow references; execution expires much earlier. |
+| `hoplane_transfers`       | 90 days from creation, including updates.                                |
+| `hoplane_preferences`     | Retained until explicitly removed by account administration.             |
 
 Expired records are excluded by application logic immediately; Firestore physical TTL deletion is asynchronous. The supplied index supports transfer listing by `owner ASC, createdAt DESC`. Create/consume/rate-limit/CAS operations use Firestore transactions; SQLite uses atomic local transactions. The in-memory adapter is for tests only.
 
@@ -186,7 +186,17 @@ Firestore TTL does not delete backups. Choose backup retention and account-delet
 
 ## Production deployment to hoplane-b9ac1
 
-The included configuration selects `hoplane-b9ac1`; always pass the project explicitly as well. The session's configured GCP token was rejected by the Project API (`401 ACCESS_TOKEN_TYPE_UNSUPPORTED`), so cloud deployment and Firestore access were not verified. A working deployment identity with the relevant permissions is still required. No interactive login or cloud mutation was performed on that failed credential.
+The included configuration selects `hoplane-b9ac1`; always pass the project explicitly as well. The deployment attempt on October 27, 2026 confirmed `401 ACCESS_TOKEN_TYPE_UNSUPPORTED` from Project, Billing and Cloud Run APIs. Cloud deployment and Firestore access remain unverified. Reconnect a valid deployment identity with the relevant permissions. A Firebase web API key does not authorize deployment. No cloud mutation was performed on the rejected credential.
+
+For a local Google Cloud CLI login, use `gcloud auth login` and `gcloud config set project hoplane-b9ac1`. That authenticates only that computer. To authorize this managed workspace, reconnect its deployment identity or replace `GCP_DEPLOY_ACCESS_TOKEN` through secure environment settings using a valid short-lived OAuth access token. Never paste credentials in chat or source files. Firebase CLI needs its own authenticated session (`firebase login`) or supported Application Default Credentials; a browser Firebase configuration is insufficient.
+
+After the one-time provisioning below, use Node 24, Google Cloud CLI, Firebase CLI, `curl`, and `jq`, then run:
+
+```sh
+bash scripts/deploy-firebase.sh
+```
+
+The script performs read-only project/billing/resource checks before deployment. It then builds the current app, deploys Firestore rules/indexes/TTL, runs the tested Cloud Build image build, deploys its exact digest to Cloud Run, publishes Hosting and checks the website, health, Firestore readiness and disabled execution through the Firebase URL. A new transfer index may take time to become `READY`; the script stops before publishing if it is still building. Optional `HOPLANE_BUILD_SERVICE_ACCOUNT` selects a pre-provisioned build identity in this project. The script uses `deploy/cloudrun.firebase.yaml` as the initial, non-secret runtime configuration; review it before applying it to a service with existing environment settings. It does not provision missing resources, change billing, or add provider secrets. The individual commands below remain available for provisioning and deliberate configuration changes.
 
 Cloud Run uses a dedicated runtime identity, `hoplane-runtime@hoplane-b9ac1.iam.gserviceaccount.com`. Grant it `roles/datastore.user`; grant `roles/secretmanager.secretAccessor` separately on each secret it actually needs. Do not give the runtime identity Owner, Editor, Cloud Run Admin, or a downloaded service-account key. Use Application Default Credentials through the attached identity.
 
@@ -242,17 +252,17 @@ STORE_DRIVER: firestore
 FIREBASE_PROJECT_ID: hoplane-b9ac1
 APP_ORIGIN: https://hoplane-b9ac1.web.app
 ALLOWED_ORIGINS: https://hoplane-b9ac1.web.app
-ENABLE_MAINNET: 'false'
-ENABLE_EXECUTION: 'false'
-ALLOWED_MAINNET_CHAINS: '1,8453,42161,10,137,56,43114,534352,324'
-ALLOWED_TESTNET_CHAINS: '11155111,84532'
-ALLOWED_TRANSACTION_TARGETS_JSON: '{}'
-AUTH_CHAIN_ID: '1'
-SESSION_TTL_MS: '86400000'
-QUOTE_TTL_MS: '30000'
-MAX_SLIPPAGE_BPS: '300'
-RELAY_TIMEOUT_MS: '10000'
-TRUST_PROXY_HOPS: '0'
+ENABLE_MAINNET: "false"
+ENABLE_EXECUTION: "false"
+ALLOWED_MAINNET_CHAINS: "1,8453,42161,10,137,56,43114,534352,324"
+ALLOWED_TESTNET_CHAINS: "11155111,84532"
+ALLOWED_TRANSACTION_TARGETS_JSON: "{}"
+AUTH_CHAIN_ID: "1"
+SESSION_TTL_MS: "86400000"
+QUOTE_TTL_MS: "30000"
+MAX_SLIPPAGE_BPS: "300"
+RELAY_TIMEOUT_MS: "10000"
+TRUST_PROXY_HOPS: "0"
 ```
 
 Replace the digest placeholder with the exact image digest from the build:
