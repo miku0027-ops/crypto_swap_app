@@ -10,15 +10,41 @@ const response = (rows = [providerRow()]) =>
   });
 afterEach(() => vi.useRealTimers());
 describe("validated public transaction feed", () => {
-  it("calls host fetch with the global context required by Worker runtimes", async () => {
-    const fetcher = function (this: unknown) {
+  it("uses Worker-compatible fetch options and the host global context", async () => {
+    const fetcher = function (
+      this: unknown,
+      _url: unknown,
+      options?: RequestInit,
+    ) {
       expect(this).toBe(globalThis);
+      expect(options).not.toHaveProperty("credentials");
+      expect(options?.redirect).toBe("manual");
       return Promise.resolve(response());
     } as typeof fetch;
     expect(
       (await new PublicTransactionsService({}, fetcher, () => NOW).snapshot())
         .transactions,
     ).toHaveLength(1);
+  });
+  it("rejects provider redirects without forwarding the key to another host", async () => {
+    const fetcher = vi.fn<typeof fetch>(
+      async () =>
+        new Response(null, {
+          status: 302,
+          headers: { Location: "https://untrusted.example/" },
+        }),
+    );
+    await expect(
+      new PublicTransactionsService(
+        { apiKey: "test-server-key" },
+        fetcher,
+        () => NOW,
+      ).snapshot(),
+    ).rejects.toMatchObject({ code: "TRANSACTIONS_UNAVAILABLE" });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(String(fetcher.mock.calls[0][0])).toMatch(
+      /^https:\/\/api\.relay\.link\/requests\/v3\?/,
+    );
   });
   it("uses fixed descending public requests, exact raw amounts, and indexed fill timing", async () => {
     const fetcher = vi.fn<typeof fetch>(async () => response());
@@ -31,7 +57,8 @@ describe("validated public transaction feed", () => {
     expect(String(url)).toContain(
       "requests/v2?limit=50&sortBy=createdAt&sortDirection=desc&includeAuthenticatedData=false",
     );
-    expect(options).toMatchObject({ redirect: "error", credentials: "omit" });
+    expect(options).toMatchObject({ redirect: "manual" });
+    expect(options).not.toHaveProperty("credentials");
     expect(options?.headers).not.toHaveProperty("x-api-key");
     expect(feed.transactions[0]).toMatchObject({
       from: {

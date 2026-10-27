@@ -1,4 +1,6 @@
 import { z } from "zod";
+// Preserve the strict browser/Worker CSP without probing dynamic code execution.
+z.config({ jitless: true });
 
 const text = (max: number) =>
   z

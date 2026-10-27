@@ -200,8 +200,10 @@ export class PublicTransactionsService {
                   ? { "x-api-key": this.options.apiKey }
                   : {}),
               },
-              credentials: "omit",
-              redirect: "error",
+              // Server-side fetch has no browser cookie jar; only the explicit
+              // headers above are sent. Workers do not implement credentials
+              // or redirect:error. Manual mode plus !ok below rejects redirects.
+              redirect: "manual",
               signal: controller.signal,
             },
           );
