@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // The backend authenticates wallets and scopes every operation to its owner.
+    // Admin SDK access is governed by IAM; no browser SDK may access these data.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

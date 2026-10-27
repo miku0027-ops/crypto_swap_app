@@ -3,6 +3,11 @@ dist/
 .env
 .env.*
 !.env.example
+!.env.server.example
 *.log
 .playwright/
 *.tsbuildinfo
+dist-server/
+.data/
+.env.server
+*.sqlite*

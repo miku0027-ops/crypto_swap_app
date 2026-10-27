@@ -2104,3 +2104,155 @@ h3 {
     scroll-behavior: auto !important;
   }
 }
+
+/* Keep live and simulated trading an explicit, visible choice. */
+.experience-switch {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--surface-soft);
+}
+.experience-switch button {
+  padding: 7px 13px;
+  border-radius: 20px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.experience-switch button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 4px #20382e12;
+}
+.experience-switch button:hover {
+  color: var(--text);
+}
+@media (max-width: 1150px) {
+  .experience-demo .main-nav {
+    margin-left: 0;
+  }
+  .experience-demo .header-actions {
+    gap: 10px;
+  }
+  .experience-demo .nav-link {
+    padding: 9px;
+  }
+}
+@media (max-width: 900px) {
+  .experience-demo .site-header {
+    gap: 10px;
+  }
+  .experience-demo .header-wallet {
+    padding: 10px;
+  }
+  .experience-demo .header-wallet > span {
+    display: none;
+  }
+}
+@media (max-width: 700px) {
+  .experience-switch button {
+    padding: 7px 10px;
+    font-size: 10px;
+  }
+  .experience-demo .header-wallet {
+    padding: 9px;
+  }
+  .experience-demo .header-actions {
+    gap: 6px;
+  }
+}
+@media (max-width: 420px) {
+  .experience-demo .site-header {
+    padding: 0 12px;
+  }
+  .experience-demo .brand {
+    font-size: 22px;
+    gap: 3px;
+  }
+  .experience-demo .brand-mark {
+    width: 26px;
+  }
+  .experience-demo .brand-mark svg {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+/* Company navigation: a desktop disclosure and a nested mobile accordion. */
+.company-nav { position: relative; }
+.company-trigger { display: flex; align-items: center; gap: 6px; }
+.company-trigger > svg { transition: transform .18s; }
+.company-trigger[aria-expanded="true"] > svg { transform: rotate(180deg); }
+.company-menu {
+  position: absolute;
+  top: calc(100% + 13px);
+  left: 0;
+  z-index: 35;
+  width: 218px;
+  padding: 7px;
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: var(--surface);
+  box-shadow: 0 12px 35px #18382d12;
+}
+.company-menu > a {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 11px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.company-menu > a:hover,
+.company-menu > a[aria-current="page"] {
+  background: var(--surface-soft);
+  color: var(--text);
+}
+.company-menu > a[aria-current="page"] { font-weight: 650; }
+.company-link-arrow { margin-left: auto; opacity: .6; }
+@media (min-width: 701px) and (max-width: 1000px) {
+  .site-header { padding-left: 18px; padding-right: 18px; gap: 10px; }
+  .main-nav { gap: 0; margin-left: 0; }
+  .nav-link, .experience-demo .nav-link { padding: 9px 7px; font-size: 11px; }
+  .experience-demo .header-wallet { padding: 10px; }
+  .experience-demo .header-wallet > span { display: none; }
+  .company-trigger { gap: 3px; }
+}
+@media (max-width: 700px) {
+  .company-nav {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--border);
+    padding-top: 7px;
+    margin-top: 5px;
+  }
+  .company-trigger {
+    width: 100%;
+    justify-content: space-between;
+    padding: 13px 12px;
+    border-radius: 9px;
+    font-size: 14px;
+    text-align: left;
+  }
+  .company-menu {
+    position: static;
+    width: auto;
+    margin: 1px 0 6px 15px;
+    padding: 0 0 0 12px;
+    border: 0;
+    border-left: 1px solid var(--border);
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+    gap: 1px;
+  }
+  .company-menu > a { padding: 12px; font-size: 13px; }
+  .main-nav.open { max-height: calc(100dvh - 95px); overflow-y: auto; }
+}

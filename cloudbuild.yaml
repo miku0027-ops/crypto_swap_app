@@ -1,0 +1,31 @@
+# Build and publish only. Deployment is an explicit step in docs/BACKEND.md.
+substitutions:
+  _EXPECTED_PROJECT_ID: hoplane-b9ac1
+  _REGION: asia-south1
+  _REPOSITORY: hoplane
+steps:
+  - id: verify-project
+    name: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        if [ "$PROJECT_ID" != "${_EXPECTED_PROJECT_ID}" ]; then
+          echo 'Build project does not match _EXPECTED_PROJECT_ID. Refusing to continue.' >&2
+          exit 1
+        fi
+  - id: build-and-test
+    name: gcr.io/cloud-builders/docker
+    env:
+      - DOCKER_BUILDKIT=1
+    args:
+      - build
+      - --pull
+      - --tag
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/hoplane-api:$BUILD_ID
+      - .
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/hoplane-api:$BUILD_ID
+options:
+  logging: CLOUD_LOGGING_ONLY
+timeout: 1200s

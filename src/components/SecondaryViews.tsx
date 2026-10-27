@@ -735,39 +735,44 @@ export function PortfolioView({
 
 const faqs = [
   {
-    question: "What can I do in this preview?",
+    question: "What is the difference between Live and Demo?",
     answer:
-      "Explore the bridge and swap interface, select networks and tokens, adjust slippage, choose a recipient, and run a clearly labeled demo transfer. Demo quotes use illustrative prices and never move real funds.",
+      "Live uses Hoplane’s backend for supported EVM networks, wallet sign-in, balances, provider quotes, and transfer tracking. Available actions depend on the service configuration. Demo is an explicit, separate experience with illustrative prices and simulated transfers. Demo mode never moves funds and is never substituted for a live quote.",
   },
   {
     question: "Can Hoplane access my seed phrase or private key?",
     answer:
-      "No. The interface connects through your wallet provider. Never enter a seed phrase or private key on a website. In this preview, connecting a wallet requests your public address; transaction signing is not enabled.",
+      "No. Your wallet keeps your keys. Live sign-in asks you to sign a wallet ownership message, and an enabled transfer requires separate transaction approval in your wallet. Review the domain, network, recipient, amounts, and permissions before signing. Never enter a seed phrase or private key on a website.",
   },
   {
-    question: "What is needed to enable live swaps?",
+    question: "What needs to be configured before a live transfer?",
     answer:
-      "Live quotes require a Relay application API key, held on a server rather than exposed in the browser. The next integration stage also needs transaction execution, wallet balance indexing, receipt tracking, and route-specific validation. Until then, displayed quotes are illustrative.",
+      "The operator must connect a server-held Relay API key, RPC access for each enabled chain, and an allowlist of reviewed transaction contract targets. Execution and mainnet are separately enabled. The service checks these prerequisites and can block a route even when a quote is available. Secrets belong on the server, never in browser settings.",
   },
   {
     question: "Can I test without paying for transactions?",
     answer:
-      "Relay supports testnet bridging with testnet tokens. The testnet API uses a separate endpoint and supported network list. Testnet swaps often fail because test networks lack real DEX liquidity. This UI’s demo mode is entirely local and free to explore.",
+      "Choose Demo to explore locally without real funds. Live testnet transfers use supported test networks and test tokens; the testnet list comes from the provider and the service’s enabled chains. Testnet bridging can be tested without purchasing crypto, but swaps may fail because test networks lack DEX liquidity. Mainnet transactions use real assets and may incur gas and route fees.",
   },
   {
     question: "Why do the output amount and fees change?",
     answer:
-      "Real quotes depend on current liquidity, token prices, network gas, and the selected route. A live review should show execution, swap, platform, and any app fees, plus separate origin gas when applicable. Preview amounts in this build are examples, not executable quotes.",
+      "Live quotes depend on current liquidity, token prices, network gas, and the route. Review the quoted output, minimum received, fees, and expiration before confirming. A refreshed quote may differ from an earlier one. Unknown fee values are not treated as zero. Demo prices and amounts are illustrative and cannot be executed.",
   },
   {
     question: "What happens if a bridge transfer is delayed?",
     answer:
-      "A live implementation tracks the provider’s request status and source and destination transactions. Transfers can be pending, completed, or refunded; a failure status may still require retry or refund processing. Never repeat a transfer simply because it is taking longer than expected.",
+      "Live activity tracks the provider request and submitted transactions. A pending transfer may complete or be refunded later. If your wallet already broadcast a transaction, retry tracking rather than send it again. Completion requires settlement evidence; an intermediate error alone does not mean the transfer was refunded.",
   },
   {
-    question: "Will my activity sync between web, Android, and the extension?",
+    question: "Which networks and wallets are supported?",
     answer:
-      "Cross-device sync is planned for a shared backend. This build stores settings and demo activity locally in your current browser. Native Android packaging, extension distribution, account authentication, and cloud sync are not connected yet.",
+      "The live integration currently supports enabled EVM networks and compatible browser wallets using EOA wallet ownership sign-in. It does not provide live Solana or Bitcoin signing, smart-contract wallet authentication, WalletConnect, or fiat checkout. The broader Demo catalog is for interface exploration and does not indicate live route availability.",
+  },
+  {
+    question: "Will my settings and activity sync across devices?",
+    answer:
+      "Live account preferences and transfer records are stored by Hoplane’s backend after wallet sign-in. Accessing the same backend with the same wallet enables shared records. Demo preferences and activity stay in the current browser. Native Android packaging and Chrome extension distribution are separate work; the responsive website works in a mobile browser.",
   },
 ];
 export function HelpView() {

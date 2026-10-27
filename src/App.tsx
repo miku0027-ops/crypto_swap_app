@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowDownLeft,
@@ -34,8 +34,13 @@ import {
   RefreshCw,
   LogOut,
   Compass,
+  BookOpen,
+  Palette,
+  BriefcaseBusiness,
 } from "lucide-react";
 import { Modal, TokenIcon, ChainIcon } from "./components/Primitives";
+import LiveTrading from "./components/LiveTrading";
+import CompanyView from "./components/CompanyViews";
 import {
   ExploreView,
   ActivityView,
@@ -59,7 +64,29 @@ import {
 } from "./lib/trade";
 import { loadSettings, loadActivity, loadFavorites } from "./lib/storage";
 import type { Asset, Settings, Wallet, Activity } from "./lib/types";
-type Page = "swap" | "explore" | "activity" | "portfolio" | "help";
+type CompanyPage = "blog" | "brand" | "jobs";
+type Page = "swap" | "explore" | "activity" | "portfolio" | "help" | CompanyPage;
+const isCompanyPage = (page: Page): page is CompanyPage =>
+  page === "blog" || page === "brand" || page === "jobs";
+const pageFromLocation = (): Page => {
+  const match = location.hash.match(/^#company\/(blog|brand|jobs)$/);
+  return match ? match[1] as CompanyPage : "swap";
+};
+const companyLinks = [
+  { page: "blog", label: "Blog", icon: BookOpen },
+  { page: "brand", label: "Brand Assets", icon: Palette },
+  { page: "jobs", label: "Jobs", icon: BriefcaseBusiness },
+] as const;
+type Experience = "live" | "demo";
+const loadExperience = (): Experience => {
+  try {
+    return localStorage.getItem("hoplane.experience") === "demo"
+      ? "demo"
+      : "live";
+  } catch {
+    return "live";
+  }
+};
 type Dialog =
   | "wallet"
   | "settings"
@@ -103,10 +130,15 @@ const defaultAsset = (side: "from" | "to"): Asset => {
   };
 };
 export default function App() {
-  const [page, setPage] = useState<Page>("swap"),
+  const [experience, setExperience] = useState<Experience>(loadExperience);
+  const [page, setPage] = useState<Page>(pageFromLocation),
     [mode, setMode] = useState<"swap" | "buy" | "sell">("swap"),
     [dialog, setDialog] = useState<Dialog>(null),
     [mobileNav, setMobileNav] = useState(false);
+  const [companyOpen, setCompanyOpen] = useState(false);
+  const companyRef = useRef<HTMLDivElement>(null);
+  const companyTriggerRef = useRef<HTMLButtonElement>(null);
+  const mobileMenuRef = useRef<HTMLButtonElement>(null);
   const [from, setFrom] = useState<Asset>(() => defaultAsset("from")),
     [to, setTo] = useState<Asset>(() => defaultAsset("to")),
     [amount, setAmount] = useState("0.1");
@@ -140,9 +172,17 @@ export default function App() {
         ? "Amount exceeds the sample balance."
         : "";
   useEffect(() => {
+    try {
+      localStorage.setItem("hoplane.experience", experience);
+    } catch {
+      // Private browser sessions can restrict local storage.
+    }
+  }, [experience]);
+  useEffect(() => {
+    if (experience !== "demo") return;
     saveStored("hoplane.settings", settings);
     document.documentElement.dataset.theme = settings.theme;
-  }, [settings]);
+  }, [settings, experience]);
   useEffect(() => {
     saveStored("hoplane.activity", activity);
   }, [activity]);
@@ -155,6 +195,7 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [toast]);
   useEffect(() => {
+    if (experience !== "demo") return;
     const update = (accounts: string[]) =>
       setWallet((prev) =>
         prev?.type === "injected"
@@ -165,11 +206,59 @@ export default function App() {
       );
     window.ethereum?.on?.("accountsChanged", update);
     return () => window.ethereum?.removeListener?.("accountsChanged", update);
+  }, [experience]);
+  useEffect(() => {
+    const syncLocation = () => {
+      setPage(pageFromLocation());
+      setCompanyOpen(false);
+      setMobileNav(false);
+    };
+    window.addEventListener("popstate", syncLocation);
+    window.addEventListener("hashchange", syncLocation);
+    return () => {
+      window.removeEventListener("popstate", syncLocation);
+      window.removeEventListener("hashchange", syncLocation);
+    };
   }, []);
+  useEffect(() => {
+    const closeOutside = (event: PointerEvent) => {
+      if (companyOpen && !companyRef.current?.contains(event.target as Node)) {
+        setCompanyOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (companyOpen) {
+        setCompanyOpen(false);
+        companyTriggerRef.current?.focus();
+      } else if (mobileNav) {
+        setMobileNav(false);
+        mobileMenuRef.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [companyOpen, mobileNav]);
   const navigate = (next: Page) => {
     setPage(next);
     setMobileNav(false);
+    setCompanyOpen(false);
+    const hash = isCompanyPage(next) ? `#company/${next}` : "";
+    if (isCompanyPage(next) || location.hash.startsWith("#company/")) {
+      const url = `${location.pathname}${location.search}${hash}`;
+      if (location.hash !== hash) window.history.pushState({}, "", url);
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const switchExperience = (next: Experience) => {
+    setExperience(next);
+    setDialog(null);
+    setToast("");
+    navigate("swap");
   };
   const pickAsset = (asset: Asset) => {
     setTo(asset);
@@ -316,7 +405,11 @@ export default function App() {
                 );
             }}
           />
-          <button className="asset-select" aria-label={`Select ${side === 'from' ? 'source' : 'destination'} token: ${asset.symbol} on ${chainFor(asset.chainId).name}`} onClick={() => setDialog(side)}>
+          <button
+            className="asset-select"
+            aria-label={`Select ${side === "from" ? "source" : "destination"} token: ${asset.symbol} on ${chainFor(asset.chainId).name}`}
+            onClick={() => setDialog(side)}
+          >
             <TokenIcon
               symbol={asset.symbol}
               chainId={asset.chainId}
@@ -359,7 +452,7 @@ export default function App() {
     );
   };
   return (
-    <div className="app-shell">
+    <div className={`app-shell experience-${experience}`}>
       <header className="site-header">
         <button
           className="brand"
@@ -377,58 +470,150 @@ export default function App() {
           hoplane
         </button>
         <nav
+          id="main-navigation"
           className={mobileNav ? "main-nav open" : "main-nav"}
           aria-label="Main navigation"
         >
-          {(["swap", "explore", "activity", "portfolio"] as Page[]).map(
-            (item) => (
-              <button
-                key={item}
-                className={page === item ? "nav-link active" : "nav-link"}
-                onClick={() => navigate(item)}
-              >
-                {item === "swap"
-                  ? "Swap & bridge"
+          {(
+            (experience === "live"
+              ? ["swap", "activity", "portfolio"]
+              : ["swap", "explore", "activity", "portfolio"]) as Page[]
+          ).map((item) => (
+            <button
+              key={item}
+              className={page === item ? "nav-link active" : "nav-link"}
+              onClick={() => navigate(item)}
+            >
+              {item === "swap"
+                ? experience === "live"
+                  ? "Swap"
+                  : "Swap & bridge"
+                : item === "portfolio" && experience === "live"
+                  ? "Account"
                   : item[0].toUpperCase() + item.slice(1)}
-              </button>
-            ),
-          )}
+            </button>
+          ))}
           <button
             className="nav-link mobile-help"
             onClick={() => navigate("help")}
           >
             Help
           </button>
+          <div className="company-nav" ref={companyRef}>
+            <button
+              ref={companyTriggerRef}
+              className={`nav-link company-trigger ${isCompanyPage(page) ? "active" : ""}`}
+              aria-expanded={companyOpen}
+              aria-controls="company-navigation"
+              onClick={() => setCompanyOpen((open) => !open)}
+            >
+              Company
+              <ChevronDown size={15} aria-hidden="true" />
+            </button>
+            {companyOpen && (
+              <div id="company-navigation" className="company-menu">
+                {companyLinks.map(({ page: destination, label, icon: Icon }) => (
+                  <a
+                    key={destination}
+                    href={`#company/${destination}`}
+                    aria-current={page === destination ? "page" : undefined}
+                    onClick={(event) => {
+                      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                      event.preventDefault();
+                      navigate(destination);
+                    }}
+                  >
+                    <Icon size={17} aria-hidden="true" />
+                    <span>{label}</span>
+                    <ArrowUpRight size={13} className="company-link-arrow" aria-hidden="true" />
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
         </nav>
         <div className="header-actions">
-          <button
-            className="network-status"
-            onClick={() => setDialog("settings")}
+          <div
+            className="experience-switch"
+            role="group"
+            aria-label="Experience mode"
           >
-            <span />
-            {settings.testnet ? "Testnet preview" : "Mainnet preview"}
-            <ChevronDown size={12} />
-          </button>
+            {(["live", "demo"] as const).map((item) => (
+              <button
+                key={item}
+                type="button"
+                aria-label={`${item === "live" ? "Live" : "Demo"} mode`}
+                aria-pressed={experience === item}
+                onClick={() => switchExperience(item)}
+              >
+                {item === "live" ? "Live" : "Demo"}
+              </button>
+            ))}
+          </div>
+          {experience === "demo" && (
+            <>
+              <button
+                className="network-status"
+                onClick={() => setDialog("settings")}
+              >
+                <span />
+                {settings.testnet ? "Testnet preview" : "Mainnet preview"}
+                <ChevronDown size={12} />
+              </button>
+              <button
+                className="header-wallet"
+                onClick={() => setDialog(wallet ? "account" : "wallet")}
+              >
+                <WalletIcon size={16} />
+                <span>
+                  {wallet ? shortAddress(wallet.address) : "Connect wallet"}
+                </span>
+              </button>
+            </>
+          )}
           <button
-            className="header-wallet"
-            onClick={() => setDialog(wallet ? "account" : "wallet")}
-          >
-            <WalletIcon size={16} />
-            <span>
-              {wallet ? shortAddress(wallet.address) : "Connect wallet"}
-            </span>
-          </button>
-          <button
+            ref={mobileMenuRef}
             className="icon-button mobile-menu"
             aria-label="Toggle navigation"
-            onClick={() => setMobileNav((v) => !v)}
+            aria-expanded={mobileNav}
+            aria-controls="main-navigation"
+            onClick={() => {
+              setMobileNav((v) => !v);
+              setCompanyOpen(false);
+            }}
           >
             {mobileNav ? <X /> : <Menu />}
           </button>
         </div>
       </header>
       <main>
-        {page === "swap" ? (
+        {isCompanyPage(page) ? (
+          <CompanyView page={page} />
+        ) : experience === "live" ? (
+          page === "help" ? (
+            <HelpView />
+          ) : (
+            <LiveTrading
+              onDemo={() => switchExperience("demo")}
+              onViewChange={(view) =>
+                navigate(
+                  view === "account"
+                    ? "portfolio"
+                    : view === "activity"
+                      ? "activity"
+                      : "swap",
+                )
+              }
+              view={
+                page === "portfolio"
+                  ? "account"
+                  : page === "activity"
+                    ? "activity"
+                    : "trade"
+              }
+            />
+          )
+        ) : page === "swap" ? (
           <>
             <div className="hero">
               <div className="eyebrow hero-eyebrow">
@@ -836,7 +1021,8 @@ export default function App() {
       <footer className="site-footer">
         <div>
           <span className="footer-dot" />
-          Hoplane preview<span className="footer-divider">/</span>
+          {experience === "demo" ? "Hoplane demo" : "Hoplane"}
+          <span className="footer-divider">/</span>
           <span>Made for your next move.</span>
         </div>
         <div>
@@ -848,22 +1034,24 @@ export default function App() {
             Relay docs
             <ArrowUpRight size={12} />
           </a>
-          <button
-            className="theme-button"
-            aria-label={`Switch to ${settings.theme === "light" ? "dark" : "light"} theme`}
-            onClick={() =>
-              setSettings((s) => ({
-                ...s,
-                theme: s.theme === "light" ? "dark" : "light",
-              }))
-            }
-          >
-            {settings.theme === "light" ? (
-              <Moon size={16} />
-            ) : (
-              <Sun size={16} />
-            )}
-          </button>
+          {experience === "demo" && (
+            <button
+              className="theme-button"
+              aria-label={`Switch to ${settings.theme === "light" ? "dark" : "light"} theme`}
+              onClick={() =>
+                setSettings((s) => ({
+                  ...s,
+                  theme: s.theme === "light" ? "dark" : "light",
+                }))
+              }
+            >
+              {settings.theme === "light" ? (
+                <Moon size={16} />
+              ) : (
+                <Sun size={16} />
+              )}
+            </button>
+          )}
         </div>
       </footer>
       {dialog === "from" || dialog === "to" ? (

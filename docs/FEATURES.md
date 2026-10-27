@@ -1,76 +1,60 @@
 # Feature coverage
 
-This checklist separates the implemented interface from live financial capabilities. “Implemented” below means usable in the current UI preview; it does not mean that the app can transfer funds. Sample data is explicitly labeled, and unconfigured integrations do not claim successful execution.
+This checklist records implementation scope. It does not certify production readiness or successful on-chain execution. The live workspace is configured by backend capabilities; the no-funds demo retains clearly labeled sample data.
 
-## Implemented UI
+## Implemented backend
 
-- [x] Responsive desktop/mobile shell, navigation, and original Hoplane branding.
-- [x] Swap and bridge workspace with source/destination network and token selection.
-- [x] Search by token name/symbol, network selection, favorite tokens, empty results, and reversible routes.
-- [x] Static preview catalog for Ethereum, Base, Arbitrum, Optimism, Polygon, Solana, BNB Chain, Avalanche, Scroll, and ZKsync.
-- [x] Editable pay/receive fields, illustrative USD values and conversion, demo balance controls, invalid-amount feedback, and same-asset route guard.
-- [x] Custom recipient with destination-specific EVM/Solana address-format feedback.
-- [x] Expandable route summary, illustrative fee/time estimates, minimum received, and auto/custom slippage.
-- [x] Persistent destination-gas preference, testnet preference, and light/dark appearance.
-- [x] Wallet modal with installed EVM wallet connection and a separate explicitly labeled demo wallet.
-- [x] Copy address, wallet disconnect, and linked navigation to the portfolio.
-- [x] Review, simulated transfer progress, and simulated completion details.
-- [x] Local demo activity with search, status filters, detail expansion, reference copying, empty states, and CSV export.
-- [x] Network discovery with categories, search, network cards, and route selection.
-- [x] Portfolio connection/empty states; searchable sample assets, balance visibility, and actions in demo mode.
-- [x] Buy/sell form layouts with fiat currency, payment method, token/network selection, and disabled provider checkout.
-- [x] Help articles, accessible controls/dialog structure, and official provider documentation links.
-- [x] Preferences, favorites, and simulated history persisted in local browser storage, with schema validation, size bounds, and malformed-record recovery.
+- [x] Fastify API with strict request schemas, amount/address/chain checks, body limits, safe errors, and request IDs.
+- [x] Exact allowed origins, credentialed CORS, JSON-only mutation requests, CSRF checks, HTTP-only cookies, security headers, and log redaction.
+- [x] Sign-In with Ethereum for externally owned EVM accounts, expiring single-use challenges, hashed sessions, logout, and account ownership checks.
+- [x] Durable SQLite for development and a transactional Firestore adapter for production; production rejects SQLite.
+- [x] Server-owned preferences/favorites with optimistic concurrency and wallet-scoped transfer history.
+- [x] Atomic shared rate limits for authentication, quotes, upstream status requests, preferences, and balances.
+- [x] Relay mainnet/testnet hosts, current EVM metadata, verified token search, bounded responses, timeouts, cache deduplication, and provider error handling.
+- [x] Server-only Relay key, validated normalized quotes, quote expiration, policy-change detection, explicit execution/mainnet switches, and deposit address allowlists.
+- [x] Atomic quote preparation and idempotency keys; client-supplied transaction hashes do not establish success.
+- [x] Policy/expiry revalidation and a single wallet-submission reservation per step across devices; uncertain submissions require hash recovery instead of automatic resend.
+- [x] RPC verification of submitted transaction sender, chain, target, calldata, and value against the reviewed quote.
+- [x] Native/ERC-20 balance reads through fixed operator RPC endpoints, chain verification, precise base units, and partial-error handling.
+- [x] Owner-scoped provider tracking; success/refund without a destination transaction reference remains pending.
+- [x] Non-root Node 24 container, Cloud Build project guard, Firebase API rewrite, deny-all client Firestore rules, transfer query index, and deployment instructions.
 
-The catalog, prices, balances, history, durations, and quote math are illustrative. The testnet toggle is a saved preference, not an active testnet integration. Receive-amount editing approximates an exact-output flow using sample prices; production exact-output orders must come from Relay.
+## Implemented live web flow
 
-## Integration foundation implemented
+- [x] Backend availability/capability states and a separately labeled demo entry point.
+- [x] Installed EVM wallet sign-in, account-change invalidation, sign-out, and per-device sessions.
+- [x] Provider-backed source/destination network and token selection, verified asset search, and custom EVM recipient.
+- [x] Exact amount conversion, slippage limits, destination-gas request, expired quote handling, and stale-request cancellation.
+- [x] Real quote review with provider fees/minimum output, explicit transaction details, wallet confirmation, and unsupported-route explanation.
+- [x] Wallet network switching and repeated account/chain checks around transaction submission.
+- [x] Local recovery references for already-broadcast transactions, retry tracking, persisted server activity, and destination explorer links.
+- [x] Source-asset balance reads and account preferences saved to the verified wallet account.
 
-- [x] Standalone typed adapter for public Relay chain metadata and token discovery.
-- [x] Backend-only quote adapter using `VITE_API_BASE_URL` with no browser API secret.
-- [x] Public status lookup with finality-aware polling and settlement helpers.
-- [x] Aborts, timeouts, HTTP error parsing, `Retry-After`, and basic response validation.
-- [x] Unit tests for invalid trade input, recipient formats, illustrative minimum output, network selection, quote configuration, errors, cancellation, and settlement status.
+Live execution supports only **one exact native deposit or one decoded ERC-20 transfer** to an explicitly approved address. The server blocks opaque router calls, token approvals, permits, gasless signatures, unsupported transaction sequences, and non-EVM execution. A quote can be displayable without being executable. Many provider routes may therefore remain unavailable until separately reviewed transaction decoders are implemented.
 
-These adapters are not wired into the preview screens. Configuring a backend URL alone does not enable live transactions.
+## Existing demo interface
 
-## Required before live bridging or swapping
+- [x] Responsive shell, navigation, light/dark theme, accessible dialogs, search, and empty/error states.
+- [x] Illustrative swap/bridge inputs, network/token selectors, favorites, recipient feedback, route details, review, and simulated progress.
+- [x] Demo wallet, sample portfolio, local demo history, filters, CSV export, and malformed-storage recovery.
+- [x] Network discovery, help, and buy/sell setup screens with disabled fiat checkout.
 
-- [ ] Create a Relay App/API key and keep it on the server. The current `/quote/v2` contract requires authentication.
-- [ ] Implement the backend quote route with input validation, supported-route checks, per-client rate limits, and error translation.
-- [ ] Replace the static token catalog and sample addresses with chain-specific metadata, addresses, decimals, and route availability.
-- [ ] Wire live quotes with stale-response cancellation, quote refresh/expiration, real fee breakdown, minimum output, liquidity/error states, and accurate base-unit conversion.
-- [ ] Add live portfolio/balance indexing, origin-gas checks, and an execution-aware MAX calculation.
-- [ ] Add wallet chain switching and supported-chain configuration, explicit approvals/permits, wallet transaction review, and signature/execution handling.
-- [ ] Validate quote recipient, chains, currency, amount, deadline, and actual transaction commitments before execution.
-- [ ] Implement supported EVM, Solana, and other VM signing adapters. EVM connection alone cannot sign Solana transactions.
-- [ ] Obtain WalletConnect configuration before enabling its connector.
-- [ ] Track actual source and destination transactions through settlement; retain request IDs, explorer links, retry/refund states, and recovery guidance.
-- [ ] Add verified webhook or websocket processing and reload-safe tracking of unsettled requests.
-- [ ] Offer destination gas only when the provider confirms support for that destination/currency.
-- [ ] Test real testnet bridge execution, user rejection, insufficient funds, stale quotes, provider failures, and refunds. This implementation has not submitted blockchain transactions.
+Demo balances, rates, fees, timings, addresses, and history are examples. Demo local storage is independent from authenticated server preferences and live history. The demo's Solana catalog does not enable Solana transactions.
 
-## Additional product work
+## Provider and release work still required
 
-- [ ] Fiat provider integration with country availability, actual fees, identity requirements, payment authorization, and refunds.
-- [ ] Firebase authentication, account linking, Firestore security rules, and cross-device synchronization.
-- [ ] Production GCP deployment, configuration, monitoring, incident support, and provider health handling.
-- [ ] Native Android packaging, mobile wallet handoff, secure release signing, and Play Store release.
-- [ ] Chrome extension manifest, permissions, popup/full-page UX, wallet handoff, and Chrome Web Store release.
-- [ ] Localization, currency preferences beyond the demonstrated fiat selectors, translation review, and RTL layouts.
-- [ ] Contract-address token import with chain-aware validation and unverified-token warnings.
-- [ ] Real portfolio valuation, tax/accounting export from actual activity, notifications, and advanced transaction search.
-- [ ] Any rewards, staking, yield, limit orders, recurring swaps, fiat banking, or referral program. None is claimed as available here.
+- [ ] Supply a valid Relay app key; verify current API pricing/quotas and route availability for the intended launch market.
+- [ ] Configure trusted RPC endpoints and independently review deposit targets for every enabled chain. No guessed target addresses are supplied.
+- [ ] Complete real testnet quote/execution/settlement tests, including wallet rejection, insufficient gas, stale quotes, interrupted tracking, provider failures, and refunds.
+- [x] Exercise Firestore adapter concurrency, wallet/session operations, owner isolation, logical expiry, Timestamp retention metadata, and deny-all rules against the real local emulator.
+- [x] Build/run the production container locally against the Firestore emulator; check non-root runtime, SPA/API serving, authentication cookies, CSRF, and logout.
+- [ ] Validate production Firestore IAM, composite index readiness, physical TTL deletion, and Cloud Run deployment with working project credentials, monitored quotas, and alerting.
+- [ ] Add independent destination receipt/finality verification, background reconciliation, and authenticated provider callbacks where supported. Current status refresh is requested by the UI/API client.
+- [ ] Implement and review any additional contract calldata decoders before opening more execution routes.
+- [ ] Add EIP-1271/smart-account authentication, WalletConnect/mobile handoff, and supported non-EVM wallets.
+- [ ] Integrate a fiat provider with actual countries, fees, identity checks, payment authorization, and refund handling.
+- [ ] Build/package the Chrome extension and native Android application, including secure signing and store releases.
+- [ ] Add localization/RTL, notifications, aggregated portfolio valuation, and real financial/accounting exports as separate features.
+- [ ] Complete browser visual/accessibility/device coverage, operational recovery drills, load tests, and independent security review before a public funds-enabled launch.
 
-Feature planning should follow validated user needs and provider support. The repository does not assert complete parity with every Relay screen or every capability offered in the global crypto market.
-
-## Official sources used for scope
-
-- [Relay bridge/swap UI](https://relay.link/bridge/arbitrum)
-- [How to swap tokens](https://support.relay.link/en/articles/9299290-how-do-i-swap-tokens)
-- [Wallet panel and multiple-wallet controls](https://support.relay.link/en/articles/10180081-disconnect-wallet-from-relay)
-- [API keys and rate limits](https://docs.relay.link/references/api/api-keys)
-- [Quote API](https://docs.relay.link/references/api/get-quote-v2)
-- [Testnet support](https://docs.relay.link/references/api/api_guides/testnet)
-- [Transaction status lifecycle](https://docs.relay.link/references/api/get-intents-status-v3)
-- [Quote verification](https://docs.relay.link/references/api/api_core_concepts/input-validation)
+The shared backend can support future web, extension, and Android clients. Those clients are not delivered by the responsive website, and their authentication/origin integration must be implemented explicitly. No rewards, staking, yield, limit orders, or referral features are claimed.

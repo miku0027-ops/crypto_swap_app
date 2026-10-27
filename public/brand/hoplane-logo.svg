@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="224" height="48" viewBox="0 0 224 48" role="img" aria-labelledby="hoplane-logo-title hoplane-logo-description">
+  <title id="hoplane-logo-title">Hoplane logo</title>
+  <desc id="hoplane-logo-description">The forest green Hoplane mark beside the lowercase word hoplane.</desc>
+  <g fill="#20382E">
+    <path transform="translate(0 4)" d="M4 26 20 7h13L17 26zm12 8L31 16h7L23 34z" />
+    <text x="48" y="36" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="36" font-weight="700" letter-spacing="-1.5">hoplane</text>
+  </g>
+</svg>
