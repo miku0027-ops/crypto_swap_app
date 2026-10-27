@@ -125,6 +125,8 @@ export function createTransactionsWorker(
             activeKey = env.RELAY_API_KEY;
             service = new PublicTransactionsService({
               apiKey: env.RELAY_API_KEY,
+              onFailure: (detail) =>
+                console.error("Public activity upstream unavailable", detail),
             });
           }
           const read = async (): Promise<PublicFeed> => {

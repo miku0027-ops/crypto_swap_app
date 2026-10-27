@@ -10,6 +10,16 @@ const response = (rows = [providerRow()]) =>
   });
 afterEach(() => vi.useRealTimers());
 describe("validated public transaction feed", () => {
+  it("calls host fetch with the global context required by Worker runtimes", async () => {
+    const fetcher = function (this: unknown) {
+      expect(this).toBe(globalThis);
+      return Promise.resolve(response());
+    } as typeof fetch;
+    expect(
+      (await new PublicTransactionsService({}, fetcher, () => NOW).snapshot())
+        .transactions,
+    ).toHaveLength(1);
+  });
   it("uses fixed descending public requests, exact raw amounts, and indexed fill timing", async () => {
     const fetcher = vi.fn<typeof fetch>(async () => response());
     const feed = await new PublicTransactionsService(

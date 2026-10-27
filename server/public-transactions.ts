@@ -113,7 +113,14 @@ export class PublicTransactionsService {
   private cooldownUntil = 0;
   private lastError?: AppError;
   constructor(
-    private readonly options: { apiKey?: string } = {},
+    private readonly options: {
+      apiKey?: string;
+      onFailure?: (detail: {
+        kind: "http" | "runtime";
+        status?: number;
+        invalidContext?: boolean;
+      }) => void;
+    } = {},
     private readonly fetchImpl: typeof fetch = fetch,
     private readonly now: () => number = Date.now,
     private readonly beforeRequest?: () => Promise<void>,
@@ -183,7 +190,8 @@ export class PublicTransactionsService {
           if (controller.signal.aborted) throw invalid();
           // Explicit descending sort: ascending updatedAt returns old historical records.
           const source = `https://api.relay.link/requests/${version}`;
-          const response = await this.fetchImpl(
+          const response = await this.fetchImpl.call(
+            globalThis,
             `${source}?limit=50&sortBy=createdAt&sortDirection=desc&includeAuthenticatedData=false`,
             {
               headers: {
@@ -202,6 +210,7 @@ export class PublicTransactionsService {
             throw invalid();
           }
           if (!response.ok) {
+            this.options.onFailure?.({ kind: "http", status: response.status });
             void response.body?.cancel().catch(() => {});
             const advertised = Number(response.headers.get("Retry-After"));
             const retry =
@@ -390,6 +399,12 @@ export class PublicTransactionsService {
       return this.cached;
     } catch (error) {
       if (error instanceof AppError) throw error;
+      this.options.onFailure?.({
+        kind: "runtime",
+        invalidContext:
+          error instanceof TypeError &&
+          error.message.includes("Illegal invocation"),
+      });
       throw new AppError(
         503,
         "TRANSACTIONS_UNAVAILABLE",
