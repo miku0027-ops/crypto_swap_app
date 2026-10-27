@@ -126,7 +126,7 @@ export const NAVIGATION_SECTIONS: {
       {
         page: "documentation",
         label: "Documentation",
-        description: "Browse the complete reference index",
+        description: "Hoplane guides and provider references",
       },
       {
         page: "api-reference",
@@ -140,8 +140,8 @@ export const NAVIGATION_SECTIONS: {
       },
       {
         page: "explorer",
-        label: "Relay Chain Explorer",
-        description: "Inspect provider-chain activity",
+        label: "Chain Explorer",
+        description: "Inspect transactions on their network",
       },
       {
         page: "status",

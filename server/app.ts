@@ -17,6 +17,7 @@ import { VaultsService } from "./vaults.js";
 import { AccountResourcesService } from "./account-resources.js";
 import { Readable } from "node:stream";
 import { PublicTransactionsService } from "./public-transactions.js";
+import { openApiDocument } from "./developer-reference.js";
 import {
   transactionStream,
   TRANSACTION_STREAM_HEADERS,
@@ -393,6 +394,27 @@ export async function buildApp(deps: Dependencies) {
     status: "ok",
     service: "hoplane-api",
   }));
+  app.get("/api/developer/openapi.json", async (req) => {
+    parseInput(z.object({}).strict(), req.query);
+    return openApiDocument();
+  });
+  app.get("/api/developer/status", async (req) => {
+    parseInput(z.object({}).strict(), req.query);
+    return {
+      service: "hoplane-api",
+      profile: "backend",
+      checkedAt: now(),
+      capabilities: {
+        publicActivity: true,
+        quotes: Boolean(config.relayApiKey),
+        execution: config.enableExecution && Boolean(config.relayApiKey),
+        balances: rpc.configuredChainIds.length > 0,
+        sync: true,
+      },
+      testnetChainIds: config.allowedChainIds.testnet,
+      providerKeyConfigured: Boolean(config.relayApiKey),
+    };
+  });
   app.get("/api/ready", async (_req, reply) => {
     try {
       await store.get("health", "probe");

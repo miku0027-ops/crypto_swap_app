@@ -6,6 +6,7 @@ import {
   TRANSACTION_STREAM_HEADERS,
 } from "../server/transaction-stream";
 import { AppError } from "../server/errors";
+import { openApiDocument } from "../server/developer-reference";
 
 export type SiteAssets = Record<string, { contentType: string; body: string }>;
 type Environment = { RELAY_API_KEY?: string };
@@ -80,6 +81,51 @@ export function createTransactionsWorker(
       const url = new URL(request.url),
         path = url.pathname;
       try {
+        if (
+          path === "/api/developer/status" ||
+          path === "/api/developer/openapi.json"
+        ) {
+          if (request.method !== "GET")
+            return json(
+              {
+                error: {
+                  code: "METHOD_NOT_ALLOWED",
+                  message: "Use GET for developer resources.",
+                },
+              },
+              405,
+            );
+          if (url.search)
+            return json(
+              {
+                error: {
+                  code: "INVALID_QUERY",
+                  message:
+                    "Developer resources do not accept query parameters.",
+                },
+              },
+              400,
+            );
+          rateLimit(
+            `developer:${request.headers.get("CF-Connecting-IP") ?? "local"}`,
+            30,
+          );
+          if (path.endsWith("openapi.json")) return json(openApiDocument());
+          return json({
+            service: "hoplane-public-api",
+            profile: "public-preview",
+            checkedAt: now(),
+            capabilities: {
+              publicActivity: true,
+              quotes: false,
+              execution: false,
+              balances: false,
+              sync: false,
+            },
+            testnetChainIds: [],
+            providerKeyConfigured: Boolean(env.RELAY_API_KEY),
+          });
+        }
         if (
           path === "/api/transactions" ||
           path === "/api/transactions/stream"

@@ -21,6 +21,8 @@ This checklist records implementation scope. It does not certify production read
 
 ## Implemented live web flow
 
+- [x] Hoplane-specific developer guides; searchable endpoint reference and public GET tester; downloadable OpenAPI discovery; deployment-aware testnets, explorer lookup and independent service checks.
+
 - [x] Public Relay transaction table with shared SSE snapshots, polling fallback, source attribution, freshness/error states, exact amounts, explorer evidence and search/network/status filters; published through a small Sites Worker.
 
 - [x] Backend availability/capability states and a separately labeled demo entry point.

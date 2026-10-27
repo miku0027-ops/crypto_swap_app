@@ -21,6 +21,7 @@ import {
   type RelayDocCategory,
 } from "../lib/relay-reference";
 import "./resources.css";
+import DeveloperViews, { DEVELOPER_PAGES } from "./DeveloperViews";
 
 type Destination =
   | "swap"
@@ -30,7 +31,10 @@ type Destination =
   | "product-protocol"
   | "testnets"
   | "withdraw"
-  | "app-balance";
+  | "app-balance"
+  | "activity"
+  | "status"
+  | "explorer";
 type Props = {
   page: string;
   onNavigate: (page: Destination) => void;
@@ -304,7 +308,13 @@ function Intro({
     </header>
   );
 }
-function Documents({ apiOnly = false }: { apiOnly?: boolean }) {
+function Documents({
+  apiOnly = false,
+  embedded = false,
+}: {
+  apiOnly?: boolean;
+  embedded?: boolean;
+}) {
   const [search, setSearch] = useState(""),
     [category, setCategory] = useState("All");
   const source = apiOnly
@@ -324,13 +334,15 @@ function Documents({ apiOnly = false }: { apiOnly?: boolean }) {
   );
   return (
     <>
-      <Intro
-        eyebrow="DEVELOPERS / REFERENCE LIBRARY"
-        title={apiOnly ? "API reference" : "Documentation"}
-      >
-        Find every page in Relay’s public documentation index, organized by
-        topic. Articles open on the official documentation site.
-      </Intro>
+      {!embedded && (
+        <Intro
+          eyebrow="DEVELOPERS / REFERENCE LIBRARY"
+          title={apiOnly ? "API reference" : "Documentation"}
+        >
+          Find every page in Relay’s public documentation index, organized by
+          topic. Articles open on the official documentation site.
+        </Intro>
+      )}
       <div className="resource-library-toolbar">
         <label className="resource-search">
           <Search size={19} />
@@ -360,7 +372,7 @@ function Documents({ apiOnly = false }: { apiOnly?: boolean }) {
         {docs.length === 1 ? "reference" : "references"}
         <span>Index reviewed {RELAY_REFERENCE_CHECKED_AT}</span>
       </div>
-      {apiOnly && (
+      {apiOnly && !embedded && (
         <section className="resource-local-api">
           <div>
             <Code2 size={23} />
@@ -410,247 +422,6 @@ function Documents({ apiOnly = false }: { apiOnly?: boolean }) {
     </>
   );
 }
-function ServiceStatus() {
-  const [state, setState] = useState<"loading" | "available" | "unavailable">(
-      "loading",
-    ),
-    [config, setConfig] = useState<{
-      capabilities: Record<string, boolean>;
-    } | null>(null),
-    [reload, setReload] = useState(0),
-    [checked, setChecked] = useState("");
-  useEffect(() => {
-    const c = new AbortController();
-    setState("loading");
-    Promise.all([
-      api("/health", { signal: c.signal }),
-      api<{ capabilities: Record<string, boolean> }>("/config", {
-        signal: c.signal,
-      }),
-    ])
-      .then(([, v]) => {
-        setConfig(v);
-        setState("available");
-        setChecked(new Date().toLocaleTimeString());
-      })
-      .catch(() => {
-        if (!c.signal.aborted) {
-          setState("unavailable");
-          setChecked(new Date().toLocaleTimeString());
-        }
-      });
-    return () => c.abort();
-  }, [reload]);
-  return (
-    <>
-      <Intro
-        eyebrow="DEVELOPERS / SERVICE STATUS"
-        title="Know what’s available."
-      >
-        Current application availability and the official provider status page,
-        kept separate.
-      </Intro>
-      <section className="resource-status-card">
-        <div className={`resource-status-mark ${state}`} aria-hidden="true">
-          {state === "loading" ? (
-            <Loader2 className="spin" />
-          ) : state === "available" ? (
-            <Check />
-          ) : (
-            <CircleHelp />
-          )}
-        </div>
-        <div>
-          <h2>Hoplane API</h2>
-          <p role="status">
-            {state === "loading"
-              ? "Checking the connection…"
-              : state === "available"
-                ? "Responding to the current availability check."
-                : "The backend could not be reached from this preview."}
-          </p>
-          {checked && (
-            <small>Checked {checked} · this is a point-in-time check</small>
-          )}
-        </div>
-        <button
-          className="resource-outline-button"
-          disabled={state === "loading"}
-          onClick={() => setReload((n) => n + 1)}
-        >
-          Check again
-        </button>
-      </section>
-      {state === "available" && config && (
-        <div className="resource-service-grid">
-          {[
-            ["quotes", "Quotes"],
-            ["execution", "Transaction execution"],
-            ["balances", "Wallet balances"],
-            ["sync", "Account sync"],
-          ].map(([key, label]) => (
-            <div key={key}>
-              <strong>{label}</strong>
-              <span
-                className={
-                  config.capabilities[key]
-                    ? "resource-badge enabled"
-                    : "resource-badge"
-                }
-              >
-                {config.capabilities[key] ? "Configured" : "Not enabled"}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-      <section className="resource-panel">
-        <h2>Relay provider status</h2>
-        <p>
-          Provider availability is reported by Relay. A successful Hoplane check
-          does not confirm all upstream services are healthy.
-        </p>
-        <ReferenceLink href="https://status.relay.link/">
-          Open official API status
-        </ReferenceLink>
-      </section>
-    </>
-  );
-}
-function Testnets({ onNavigate }: Pick<Props, "onNavigate">) {
-  return (
-    <>
-      <Intro
-        eyebrow="DEVELOPERS / TESTNETS"
-        title="Practice the real workflow."
-      >
-        Test networks use test tokens. Check route availability before
-        requesting a quote.
-      </Intro>
-      <div className="resource-card-grid">
-        {[
-          ["Ethereum Sepolia", "11155111", "https://sepolia.etherscan.io/"],
-          ["Base Sepolia", "84532", "https://sepolia-explorer.base.org/"],
-        ].map(([name, id, url]) => (
-          <section className="resource-panel" key={id}>
-            <span className="resource-badge">Default candidate network</span>
-            <h2>{name}</h2>
-            <p>
-              Chain ID <code>{id}</code>
-            </p>
-            <ReferenceLink href={url}>Open explorer</ReferenceLink>
-          </section>
-        ))}
-      </div>
-      <div className="resource-notice">
-        <ShieldCheck size={21} />
-        <p>
-          The backend decides which networks and routes are available. Testnet
-          liquidity, quote access, RPC verification, and approved transaction
-          targets are still required. Demo mode does not send testnet
-          transactions.
-        </p>
-      </div>
-      <div className="resource-actions">
-        <button
-          className="resource-primary-button"
-          onClick={() => onNavigate("swap")}
-        >
-          Go to swap
-          <ArrowRight size={18} />
-        </button>
-        <ReferenceLink href="https://testnets.relay.link/">
-          Open Relay testnets
-        </ReferenceLink>
-      </div>
-      <ReferenceLink href="https://docs.relay.link/references/api/api_guides/testnet">
-        Testnet integration guide
-      </ReferenceLink>
-    </>
-  );
-}
-function Explorer() {
-  const [value, setValue] = useState(""),
-    [chain, setChain] = useState("1");
-  const networks = [
-    { id: "1", name: "Ethereum", url: "https://etherscan.io" },
-    { id: "8453", name: "Base", url: "https://basescan.org" },
-    { id: "42161", name: "Arbitrum", url: "https://arbiscan.io" },
-  ];
-  const v = value.trim(),
-    kind = /^0x[0-9a-fA-F]{64}$/.test(v)
-      ? "tx"
-      : /^0x[0-9a-fA-F]{40}$/.test(v)
-        ? "address"
-        : null;
-  return (
-    <>
-      <Intro
-        eyebrow="DEVELOPERS / EXPLORERS"
-        title="Follow the on-chain record."
-      >
-        Use the Relay Chain Explorer for protocol activity, or inspect a
-        transaction on its own network.
-      </Intro>
-      <section className="resource-panel resource-explorer">
-        <Globe2 size={30} />
-        <h2>Relay Chain Explorer</h2>
-        <p>
-          The official explorer is operated by Relay and opens in a separate
-          tab.
-        </p>
-        <ReferenceLink href="https://explorer.chain.relay.link/">
-          Open Relay Chain Explorer
-        </ReferenceLink>
-      </section>
-      <section className="resource-panel">
-        <h2>Look up an EVM transaction or address</h2>
-        <div className="resource-lookup">
-          <label>
-            Network
-            <select
-              aria-label="Explorer network"
-              value={chain}
-              onChange={(e) => setChain(e.target.value)}
-            >
-              {networks.map((n) => (
-                <option value={n.id} key={n.id}>
-                  {n.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="resource-grow">
-            Transaction hash or address
-            <input
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder="0x…"
-              aria-invalid={!!value && !kind}
-              aria-describedby="explorer-input-help"
-            />
-          </label>
-        </div>
-        <p
-          id="explorer-input-help"
-          className={value && !kind ? "resource-error" : "resource-help"}
-        >
-          {value && !kind
-            ? "Enter a complete EVM address or 66-character transaction hash."
-            : "Choose the network on which the transaction was submitted."}
-        </p>
-        {kind && (
-          <ReferenceLink
-            href={`${networks.find((n) => n.id === chain)!.url}/${kind}/${v}`}
-          >
-            View on {networks.find((n) => n.id === chain)!.name}
-          </ReferenceLink>
-        )}
-      </section>
-    </>
-  );
-}
-
 type AssetBalance = {
   amount: string;
   amountFormatted: string | null;
@@ -1051,20 +822,20 @@ function Legal({ privacy }: { privacy: boolean }) {
   );
 }
 export default function ResourceView({ page, onNavigate, onAccount }: Props) {
+  if ((DEVELOPER_PAGES as string[]).includes(page))
+    return (
+      <section className="resource-shell" aria-label="Developer resources">
+        <DeveloperViews
+          page={page as (typeof DEVELOPER_PAGES)[number]}
+          onNavigate={(next) => onNavigate(next as Destination)}
+          references={<Documents apiOnly={page === "api-reference"} embedded />}
+        />
+      </section>
+    );
   const guide = guides[page];
   return (
     <section className="resource-shell" aria-label="Application resources">
-      {page === "documentation" ? (
-        <Documents />
-      ) : page === "api-reference" ? (
-        <Documents apiOnly />
-      ) : page === "status" ? (
-        <ServiceStatus />
-      ) : page === "testnets" ? (
-        <Testnets onNavigate={onNavigate} />
-      ) : page === "explorer" ? (
-        <Explorer />
-      ) : page === "app-balance" || page === "withdraw" ? (
+      {page === "app-balance" || page === "withdraw" ? (
         <AccountResource
           key={page}
           recovery={page === "withdraw"}

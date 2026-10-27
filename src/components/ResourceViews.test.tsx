@@ -36,6 +36,7 @@ describe("resource journeys", () => {
   it("indexes every published reference, filters by topic and search, and restores an empty result", async () => {
     const user = userEvent.setup();
     view("documentation");
+    await user.click(screen.getByRole("button", { name: /Relay references/ }));
     expect(screen.getAllByRole("link")).toHaveLength(RELAY_DOCS.length);
     for (const link of screen.getAllByRole("link"))
       expect(link.getAttribute("href")).toMatch(
@@ -58,16 +59,26 @@ describe("resource journeys", () => {
     await user.click(screen.getByRole("button", { name: "Clear filters" }));
     expect(screen.getAllByRole("link")).toHaveLength(RELAY_DOCS.length);
   });
-  it("shows only API provider references alongside the independent Hoplane backend contract", () => {
+  it("shows Hoplane endpoints first and preserves the complete provider API directory", async () => {
+    const user = userEvent.setup();
     view("api-reference");
     expect(
+      screen.getByRole("heading", { name: "Try a read-only request" }),
+    ).toBeTruthy();
+    expect(
       screen
-        .getByRole("link", { name: "Read our API contract" })
+        .getByRole("link", { name: "Download OpenAPI" })
         .getAttribute("href"),
-    ).toContain("crypto_swap_app/blob/main/docs/BACKEND.md");
-    expect(screen.getAllByRole("link")).toHaveLength(
-      RELAY_DOCS.filter((d) => d.category === "API").length + 1,
+    ).toBe("/api/developer/openapi.json");
+    expect(screen.getByText("/api/quotes")).toBeTruthy();
+    await user.click(
+      screen.getByRole("button", { name: /Relay provider API/ }),
     );
+    expect(
+      within(
+        screen.getByRole("region", { name: "Relay API references" }),
+      ).getAllByRole("link"),
+    ).toHaveLength(RELAY_DOCS.filter((d) => d.category === "API").length);
   });
   it("does not construct explorer links for invalid input and changes the destination network safely", async () => {
     const user = userEvent.setup();
@@ -206,36 +217,48 @@ describe("resource journeys", () => {
       }),
     ).toBeNull();
   });
-  it("separates Hoplane availability from provider status and can retry an unreachable service", async () => {
-    const user = userEvent.setup();
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
-    view("status");
-    await screen.findByText(
-      "The backend could not be reached from this preview.",
+  it("separates public activity from a backend that is not deployed", async () => {
+    const runtime = {
+      service: "hoplane-public-api",
+      profile: "public-preview",
+      checkedAt: Date.now(),
+      capabilities: {
+        publicActivity: true,
+        quotes: false,
+        execution: false,
+        balances: false,
+        sync: false,
+      },
+      testnetChainIds: [],
+      providerKeyConfigured: false,
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input) =>
+        String(input).includes("/developer/status")
+          ? json(runtime)
+          : json({
+              transactions: [],
+              fetchedAt: Date.now(),
+              source: { name: "Relay network" },
+              providerDataOld: false,
+            }),
+      ),
     );
+    view("status");
+    await screen.findByText("Responding");
+    expect(
+      screen.getByText(/Account and trading services require the GCP backend/),
+    ).toBeTruthy();
     expect(
       screen
         .getByRole("link", { name: "Open official API status" })
         .getAttribute("href"),
     ).toBe("https://status.relay.link/");
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) =>
-        String(input).includes("/config")
-          ? json({
-              capabilities: {
-                quotes: true,
-                execution: false,
-                balances: true,
-                sync: true,
-              },
-            })
-          : json({ status: "ok" }),
-      ),
-    );
-    await user.click(screen.getByRole("button", { name: "Check again" }));
-    await screen.findByText("Responding to the current availability check.");
-    const execution = screen.getByText("Transaction execution").parentElement!;
-    expect(within(execution).getByText("Not enabled")).toBeTruthy();
+    expect(
+      within(
+        screen.getByText("Transaction execution").parentElement!,
+      ).getByText("Not enabled"),
+    ).toBeTruthy();
   });
 });

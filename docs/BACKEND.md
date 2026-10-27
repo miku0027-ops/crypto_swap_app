@@ -75,6 +75,8 @@ All paths start with `/api`. Authenticated POST/PUT operations require `X-CSRF-T
 | `GET /health` | Process liveness. | Public |
 | `GET /ready` | Storage readiness and capability indicators. | Public |
 | `GET /config` | Feature flags, chain IDs, policy limits, auth chain, server time; no secrets. | Public |
+| `GET /developer/status` | Deployment profile, configured capabilities and candidate testnet IDs. Reports configuration, not upstream health. | Public |
+| `GET /developer/openapi.json` | OpenAPI 3.1 discovery document for every current route, auth policy and illustrative request shapes. Detailed field validation remains in the server contract. | Public |
 | `GET /transactions` | Latest 50 validated public Relay network requests; fixed provider query, no owner or URL parameters. | Public |
 | `GET /transactions/stream` | Bounded SSE snapshot stream; heartbeat, error events, reconnection and per-IP connection limits. | Public |
 | `GET /chains?network=testnet` | Current allowed EVM chain metadata. | Public |

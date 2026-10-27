@@ -18,6 +18,50 @@ function setup() {
   return { worker, snapshot };
 }
 describe("hosted activity worker", () => {
+  it("serves accurate developer capabilities and a relative OpenAPI document", async () => {
+    const { worker, snapshot } = setup();
+    const status = await worker.fetch(
+      new Request(origin + "/api/developer/status"),
+      { RELAY_API_KEY: "test-private-key" },
+    );
+    const data = await status.json();
+    expect(data).toMatchObject({
+      profile: "public-preview",
+      providerKeyConfigured: true,
+      capabilities: {
+        publicActivity: true,
+        quotes: false,
+        execution: false,
+        sync: false,
+      },
+      testnetChainIds: [],
+    });
+    expect(JSON.stringify(data)).not.toContain("test-private-key");
+    const doc = await worker.fetch(
+      new Request(origin + "/api/developer/openapi.json"),
+    );
+    expect((await doc.json()).paths["/quotes"].post).toBeTruthy();
+    expect(snapshot).not.toHaveBeenCalled();
+  });
+  it("rejects developer endpoint parameters and mutations", async () => {
+    const { worker } = setup();
+    expect(
+      (
+        await worker.fetch(
+          new Request(origin + "/api/developer/status?key=abc"),
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await worker.fetch(
+          new Request(origin + "/api/developer/openapi.json", {
+            method: "POST",
+          }),
+        )
+      ).status,
+    ).toBe(405);
+  });
   it("serves activity when the host exposes an unavailable optional Cache API", async () => {
     const prior = Object.getOwnPropertyDescriptor(globalThis, "caches");
     Object.defineProperty(globalThis, "caches", {

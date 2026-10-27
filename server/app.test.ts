@@ -230,6 +230,26 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 describe("backend HTTP integration", () => {
+  it("exposes backend-profile developer metadata and its API discovery contract", async () => {
+    const status = await app.inject("/api/developer/status");
+    expect(status.statusCode).toBe(200);
+    expect(status.json()).toMatchObject({
+      profile: "backend",
+      service: "hoplane-api",
+      testnetChainIds: config.allowedChainIds.testnet,
+    });
+    expect(status.body).not.toContain(
+      config.relayApiKey ?? "never-a-real-value",
+    );
+    const document = await app.inject("/api/developer/openapi.json");
+    expect(document.statusCode).toBe(200);
+    expect(document.json().openapi).toBe("3.1.0");
+    expect(document.json().paths["/transactions/stream"]).toBeTruthy();
+    expect(
+      (await app.inject("/api/developer/status?url=https://untrusted.example"))
+        .statusCode,
+    ).toBe(400);
+  });
   it("serves public network activity without a wallet session or owner selection", async () => {
     const response = await app.inject("/api/transactions");
     expect(response.statusCode).toBe(200);
