@@ -1,4 +1,6 @@
 /// <reference types="vite/client" />
+import { createSiweMessage, parseSiweMessage } from "viem/siwe";
+
 export type Network = "testnet" | "mainnet";
 export type LiveCurrency = {
   chainId?: number;
@@ -303,6 +305,198 @@ export async function assertWalletAccount(
       "Your wallet account changed. Sign in again before continuing.",
       "ACCOUNT_CHANGED",
     );
+}
+
+const signInStatement =
+  "Sign in to Hoplane. This signature does not authorize any transfer of funds.";
+const csrfPattern = /^[0-9a-f]{64}$/i;
+const challengeIdPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const signInLifetimeMs = 5 * 60 * 1000;
+
+/** Authenticate an EOA for private positions. Never requests a funds transaction. */
+export async function connectWalletSession(
+  provider: WalletProvider,
+  options: { signal?: AbortSignal } = {},
+): Promise<Session> {
+  const ensureActive = () => {
+    if (options.signal?.aborted)
+      throw new DOMException("Wallet sign-in was cancelled.", "AbortError");
+  };
+  let issuedCsrfToken: string | undefined;
+  try {
+    ensureActive();
+    // Check deployment availability before opening any wallet prompt.
+    const configStarted = performance.now();
+    const config = await api<unknown>("/config", { signal: options.signal });
+    ensureActive();
+    if (
+      !record(config) ||
+      !Number.isSafeInteger(config.authChainId) ||
+      (config.authChainId as number) <= 0
+    )
+      throw new BackendError(
+        "Wallet sign-in is not configured correctly. Please try again later.",
+        "INVALID_CONFIG",
+      );
+    const chainId = config.authChainId as number;
+    const receivedAt = performance.now();
+    const localTime = Date.now();
+    // A bounded, fresh server timestamp accommodates normal device clock skew.
+    const referenceTime =
+      typeof config.serverTime === "number" &&
+      Number.isSafeInteger(config.serverTime) &&
+      config.serverTime > 0 &&
+      Math.abs(config.serverTime - localTime) <= 24 * 60 * 60 * 1000 &&
+      receivedAt - configStarted <= 30_000
+        ? config.serverTime
+        : localTime;
+    const now = () => referenceTime + (performance.now() - receivedAt);
+
+    ensureActive();
+    const accounts = await provider.request({ method: "eth_requestAccounts" });
+    ensureActive();
+    const address = Array.isArray(accounts) ? accounts[0] : undefined;
+    if (
+      typeof address !== "string" ||
+      !isEvmAddress(address) ||
+      /^0x0{40}$/i.test(address)
+    )
+      throw new BackendError(
+        "Choose a valid Ethereum wallet account to sign in.",
+        "INVALID_ADDRESS",
+      );
+
+    ensureActive();
+    const challenge = await api<unknown>("/auth/challenge", {
+      body: { address, chainId },
+      signal: options.signal,
+    });
+    ensureActive();
+    if (
+      !record(challenge) ||
+      typeof challenge.challengeId !== "string" ||
+      !challengeIdPattern.test(challenge.challengeId) ||
+      typeof challenge.message !== "string" ||
+      challenge.message.length > 4096 ||
+      typeof challenge.expiresAt !== "number" ||
+      !Number.isSafeInteger(challenge.expiresAt)
+    )
+      throw new BackendError("The wallet sign-in request is invalid.", "INVALID_CHALLENGE");
+    const message = parseSiweMessage(challenge.message);
+    const issuedAt = message.issuedAt?.getTime();
+    const expiresAt = message.expirationTime?.getTime();
+    if (
+      !message.address ||
+      message.address.toLowerCase() !== address.toLowerCase() ||
+      message.chainId !== chainId ||
+      message.version !== "1" ||
+      message.domain !== window.location.host ||
+      message.uri !== window.location.origin ||
+      message.statement !== signInStatement ||
+      message.scheme !== undefined ||
+      message.resources !== undefined ||
+      message.notBefore !== undefined ||
+      message.requestId !== undefined ||
+      !message.nonce ||
+      !/^[a-zA-Z0-9]{8,128}$/.test(message.nonce) ||
+      !Number.isFinite(issuedAt) ||
+      !Number.isFinite(expiresAt) ||
+      expiresAt !== challenge.expiresAt
+    )
+      throw new BackendError(
+        "The sign-in request does not match this app and wallet. Please retry.",
+        "INVALID_CHALLENGE",
+      );
+    const ensureFresh = () => {
+      if (
+        expiresAt! <= now() ||
+        issuedAt! > now() + 30_000 ||
+        now() - issuedAt! > signInLifetimeMs ||
+        expiresAt! - issuedAt! <= 0 ||
+        expiresAt! - issuedAt! > signInLifetimeMs
+      )
+        throw new BackendError(
+          "This wallet sign-in request expired or has an invalid lifetime. Please start again.",
+          "CHALLENGE_EXPIRED",
+        );
+    };
+    ensureFresh();
+    // The parser accepts partial messages; require the exact approved SIWE form
+    // so unparsed text or extra signing instructions cannot reach the wallet.
+    if (
+      challenge.message !==
+      createSiweMessage({
+        address: message.address,
+        chainId,
+        domain: window.location.host,
+        uri: window.location.origin,
+        version: "1",
+        nonce: message.nonce,
+        issuedAt: message.issuedAt,
+        expirationTime: message.expirationTime,
+        statement: signInStatement,
+      })
+    )
+      throw new BackendError("The wallet sign-in request is invalid.", "INVALID_CHALLENGE");
+
+    const checkAccount = async () => {
+      ensureActive();
+      await assertWalletAccount(provider, address);
+      ensureActive();
+    };
+    await checkAccount();
+    ensureActive();
+    ensureFresh();
+    const signature = await provider.request({
+      method: "personal_sign",
+      params: [messageHex(challenge.message), address],
+    });
+    ensureActive();
+    if (typeof signature !== "string" || !/^0x[0-9a-fA-F]{130}$/.test(signature))
+      throw new BackendError("The wallet returned an invalid sign-in signature.", "INVALID_SIGNATURE");
+    await checkAccount();
+    ensureActive();
+    ensureFresh();
+    // Once verification starts, receive its CSRF token even if the UI unmounts,
+    // so a session cookie issued during cancellation can be revoked below.
+    const session = await api<unknown>("/auth/verify", {
+      body: { challengeId: challenge.challengeId, signature },
+    });
+    if (record(session) && typeof session.csrfToken === "string" && csrfPattern.test(session.csrfToken))
+      issuedCsrfToken = session.csrfToken;
+    ensureActive();
+    if (
+      !record(session) ||
+      !record(session.user) ||
+      typeof session.user.address !== "string" ||
+      session.user.address.toLowerCase() !== address.toLowerCase() ||
+      !issuedCsrfToken ||
+      typeof session.expiresAt !== "number" ||
+      !Number.isSafeInteger(session.expiresAt) ||
+      session.expiresAt <= now() ||
+      session.expiresAt > now() + 7 * 24 * 60 * 60 * 1000
+    )
+      throw new BackendError(
+        "The backend returned an invalid wallet session. Please sign in again.",
+        "INVALID_SESSION",
+      );
+    await checkAccount();
+    ensureActive();
+    return session as Session;
+  } catch (error) {
+    if (issuedCsrfToken) {
+      // Do not use the cancelled signal: this is cleanup, never a funds action.
+      await api("/auth/logout", { body: {}, csrfToken: issuedCsrfToken, timeoutMs: 5000 }).catch(() => undefined);
+    }
+    ensureActive();
+    if (record(error) && (error.code === 4001 || error.code === "4001"))
+      throw new BackendError(
+        "Wallet sign-in was cancelled. Connect again when you are ready.",
+        "USER_REJECTED",
+      );
+    throw error;
+  }
 }
 export type TransferAuthorization = {
   transaction: PreparedTransaction;

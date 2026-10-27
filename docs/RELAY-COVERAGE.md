@@ -50,7 +50,7 @@ Deprecated API documents remain in the directory for discovery, but are not a re
 | Buy/Sell fiat controls | Navigation and explanatory setup; fiat checkout needs a selected provider and supported-country/payment configuration. No fake payment success. |
 | Wallet connection and network/account switching | Installed EVM-wallet sign-in and repeated account/network checks. WalletConnect and non-EVM execution are separate integration work. |
 | Transactions | Hoplane account history and simulation history remain separate. Public Relay wallet/ENS/hash search is a provider capability, not equivalent to Hoplane's owner-scoped server history. |
-| Vaults | Read-only pool/position discovery and exit guidance, reflecting the current wind-down. No new-deposit action or invented APY. |
+| Vaults | Your Positions above a searchable/sortable Top Vaults table, inline wallet sign-in, validated provider APY and WETH/USD TVL, freshness/source details, and exit guidance. Reference-only contracts remain visible if the backend is unavailable; metrics stay unavailable. No new-deposit action. |
 | Solutions and Products | Original Hoplane explanations with provider references and accurate availability; the external Relay developer dashboard is not impersonated as Hoplane administration. |
 | Documentation/API/SDK/protocol | Searchable directory of all 148 published documentation pages, with original summaries and official links. This is a reference library, not copied proprietary documentation or a new protocol. |
 | App Balance | Integrator app-fee and fee-sponsorship balance discovery. It is not an end-user's wallet token portfolio. Signing/claim/deposit/sponsorship administration are distinct financial actions. |

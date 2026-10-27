@@ -40,6 +40,7 @@ Live execution supports only **one exact native deposit or one decoded ERC-20 tr
 - [x] Search/filter directory for all 148 published Relay documentation pages and original capability explanations.
 - [x] Higher-contrast light/dark text and controls, stronger form hierarchy, explicit recipient focus/invalid states, and readable disabled actions.
 - [x] Read-only validated vault catalog and authenticated wallet positions, matching the provider's current wind-down.
+- [x] Your Positions and Top Vaults together, inline wallet sign-in, network/search filters, sortable APY/TVL, source/freshness details, and metadata-only fallback when the backend is unavailable.
 - [x] Owner-scoped integrator app balances and recovery balances; explicit mainnet/read-only labels, unknown-value preservation, and official management links.
 - [x] API availability check, official status link, testnet guidance, EVM explorer lookup, and preview terms/privacy disclosures.
 - [ ] Vault redemption, app-balance deposits/claims, recovery attestation/signing, provider dashboard administration, and complete provider feature parity remain outside the current executable integration. See [coverage](RELAY-COVERAGE.md).

@@ -127,7 +127,7 @@ The default fixed-window limits below are atomic in the shared store, so they ap
 | Submitted-hash tracking writes, per wallet | 45 |
 | Provider status refresh, per wallet / globally | 45 / 150 |
 | Actual provider metadata requests, globally | 100 |
-| Actual Relay API requests, globally (including account resources; vault index separate) | 240 |
+| Actual Relay API requests, globally (including account resources and vault USD pricing; vault GraphQL index separate) | 240 |
 | Preferences writes, per wallet | 30 |
 | Balance reads, per wallet | 20 |
 | App/recovery balance reads combined, per wallet / actual upstream globally | 20 / 40 |
@@ -143,11 +143,13 @@ Security headers on Node responses include CSP, frame blocking, MIME protection,
 
 ## Read-only provider resources
 
-Vault metadata and positions use a fixed GraphQL query on `https://vaults-api.relay.link/`. App-fee and recovery balances use fixed GET paths on `https://api.relay.link/`; no private provider key is needed for these public reads. Server routes bind private account queries to the authenticated wallet and reject supplied owner addresses, arbitrary URLs, and extra fields. The recovery `ownerChainId` identifies the Relay Hub owner account, not necessarily the deposit chain or Hoplane trading environment.
+Vault metadata and positions use fixed GraphQL queries on `https://vaults-api.relay.link/`. Optional USD estimates use Relay's documented token-price endpoint for reviewed chain/asset pairs only. App-fee and recovery balances also use fixed GET paths on `https://api.relay.link/`; no private provider key is needed for these public reads. Server routes bind private account queries to the authenticated wallet and reject supplied owner addresses, arbitrary URLs, and extra fields. The recovery `ownerChainId` identifies the Relay Hub owner account, not necessarily the deposit chain or Hoplane trading environment.
 
-These services bound responses to 1 MiB, enforce an 8-second timeout, reject redirects, validate response fields, and sanitize upstream failures. Account reads cache for 15 seconds; vault reads cache for 60 seconds. Caches are bounded, wallet-specific when applicable, clone results, and coalesce concurrent identical reads. Shared upstream budgets run only for cache misses. The HTTP response remains `no-store`.
+These services bound responses to 1 MiB, enforce an 8-second timeout, reject redirects, validate response fields, and sanitize upstream failures. Vault deadlines also cover stalled response bodies; optional USD prices have a shorter 3-second deadline and fail independently. Account and vault-position reads cache for 15 seconds; vault catalogs cache for 60 seconds. Caches are bounded, wallet-specific when applicable, clone results, and coalesce concurrent identical reads. Shared upstream budgets run only for cache misses. The HTTP response remains `no-store`.
 
-Missing currency metadata and unknown USD values stay null. Display amounts are computed from exact raw units and validated decimals. Vault share balances are not representations of immediately withdrawable underlying assets. No APY, yield guarantee, or deposit action is synthesized. App-fee claims, sponsorship administration, deposit attestation, and recovery execution are not implemented here; those links open the official provider flow for explicit user review.
+Missing currency metadata and unknown USD values stay null. Display amounts are computed from exact raw units and separately verified asset/share decimals. Provider APY basis points convert to percent; its ambiguous zero fallback remains unavailable. Index timestamps and price fetch times are distinct, invalid/future timestamps are rejected, and index data older than one hour is marked stale. Vault assets include outstanding debt, and share balances do not establish immediately withdrawable amounts. [Vault data and units](VAULT-DATA.md) records the evidence and limitations. No yield guarantee or deposit action is synthesized.
+
+The Vaults screen restores an existing session or signs in inline. It checks the backend before opening a wallet prompt and validates the exact SIWE domain, URI, wallet, chain, statement, nonce, and expiry before requesting a signature. Wallet/account changes and cancelled sign-in cannot populate the previous wallet's positions; a session issued during cancellation is revoked on a best-effort basis. The static preview shows documented reference contracts with unavailable metrics when no API is deployed. App-fee claims, sponsorship administration, deposit attestation, and recovery execution remain official provider flows for explicit user review.
 
 ## Firestore storage and retention
 

@@ -36,7 +36,9 @@ The updated interface includes Swap, Vaults, Transactions, Solutions, Products, 
 
 The documentation library indexes all **148 pages** in Relay's public index reviewed on **2026-10-27**. Articles open on the official documentation site; Hoplane's explanatory pages describe its own implementation and distinguish provider-managed workflows. [The coverage inventory](docs/RELAY-COVERAGE.md) records every observed navigation destination and remaining integration boundaries.
 
-Vaults are read-only: current Relay documentation says new deposits are closed and the existing withdrawal UI remains available until December 31, 2026. Signed-in users can read indexed vault positions, integrator app-fee balances, and Relay Hub recovery balances through owner-scoped backend endpoints. Recovery/app-fee data comes from Relay's mainnet API, independently of the trading environment. Deposits, claims, attestations, and withdrawals continue on the official provider interface; Hoplane does not sign those operations.
+Vaults puts Your Positions above a searchable, sortable Top Vaults table. Wallet sign-in stays on the page; owner-scoped positions and catalog data load independently. The table uses validated provider APY, underlying WETH amounts, and optional USD estimates with freshness labels. The static preview shows only documented reference contracts when the API is unavailable; balances and yields remain unavailable. [Vault data and units](docs/VAULT-DATA.md) records the source and meaning of each metric.
+
+Vaults are read-only: current Relay documentation says new deposits are closed and the existing withdrawal UI remains available until December 31, 2026. Signed-in users can also read integrator app-fee balances and Relay Hub recovery balances through owner-scoped backend endpoints. Recovery/app-fee data comes from Relay's mainnet API, independently of the trading environment. Claims, attestations, and withdrawals continue on the official provider interface; Hoplane does not sign those operations.
 
 ## Backend and live workspace
 

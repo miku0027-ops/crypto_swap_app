@@ -128,7 +128,10 @@ export async function buildApp(deps: Dependencies) {
     rpc = deps.rpc ?? new RpcService({});
   const vaults =
     deps.vaults ??
-    new VaultsService(fetch, now, () => limit("vaults:upstream", 60));
+    new VaultsService(fetch, now, async (kind) => {
+      if (kind === "price") await limit("relay:all", 240);
+      await limit("vaults:upstream", 60);
+    });
   const accountResources =
     deps.accountResources ??
     new AccountResourcesService(fetch, now, async () => {
