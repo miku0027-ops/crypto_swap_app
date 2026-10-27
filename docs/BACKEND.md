@@ -75,6 +75,8 @@ All paths start with `/api`. Authenticated POST/PUT operations require `X-CSRF-T
 | `GET /health` | Process liveness. | Public |
 | `GET /ready` | Storage readiness and capability indicators. | Public |
 | `GET /config` | Feature flags, chain IDs, policy limits, auth chain, server time; no secrets. | Public |
+| `GET /transactions` | Latest 50 validated public Relay network requests; fixed provider query, no owner or URL parameters. | Public |
+| `GET /transactions/stream` | Bounded SSE snapshot stream; heartbeat, error events, reconnection and per-IP connection limits. | Public |
 | `GET /chains?network=testnet` | Current allowed EVM chain metadata. | Public |
 | `GET /vaults` | Fixed, validated public vault catalog; wind-down metadata, no deposit execution. | Public |
 | `GET /vaults/positions` | Indexed vault shares belonging only to the signed-in wallet. No arbitrary owner query. | Cookie |
@@ -142,6 +144,8 @@ Firestore transactions on hot shared rate-limit keys impose an intentional globa
 Security headers on Node responses include CSP, frame blocking, MIME protection, and production HSTS. CSP uses same-origin scripts, no objects/frames, allowed API origins, HTTPS images, and Google font/style hosts; inline styles remain permitted for the current UI. Firebase Hosting supplies matching static-site headers with same-origin `connect-src`. An intentional cross-origin API deployment also needs a matching hosting CSP. API logs contain request IDs and safe error codes; credentials/cookies/signatures and raw request bodies are not logged.
 
 ## Read-only provider resources
+
+Public transaction activity is served by both the Node API and a separate Sites Worker. [Live transactions](LIVE-TRANSACTIONS.md) describes validation, source attribution, caching, response bounds, streaming and the v2 retirement deadline. The public feed is independent of enabled trading chains and exposes indexed chain references, never account sessions, preferences, prepared transaction calldata or API keys.
 
 Vault metadata and positions use fixed GraphQL queries on `https://vaults-api.relay.link/`. Optional USD estimates use Relay's documented token-price endpoint for reviewed chain/asset pairs only. App-fee and recovery balances also use fixed GET paths on `https://api.relay.link/`; no private provider key is needed for these public reads. Server routes bind private account queries to the authenticated wallet and reject supplied owner addresses, arbitrary URLs, and extra fields. The recovery `ownerChainId` identifies the Relay Hub owner account, not necessarily the deposit chain or Hoplane trading environment.
 

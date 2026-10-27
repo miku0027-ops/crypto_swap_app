@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { Modal } from "./Primitives";
+import TransactionsView from "./TransactionsPage";
 import {
   api,
   authorizeTransfer,
@@ -125,10 +126,14 @@ export default function LiveTrading({
   onDemo,
   view,
   onViewChange,
+  publicActivity = false,
+  activityScope = "network",
 }: {
   onDemo: () => void;
   view?: "trade" | "account" | "activity";
   onViewChange?: (view: "trade" | "account" | "activity") => void;
+  publicActivity?: boolean;
+  activityScope?: "network" | "personal";
 }) {
   const [config, setConfig] = useState<BackendConfig | null>(null),
     [bootError, setBootError] = useState(""),
@@ -1022,8 +1027,8 @@ export default function LiveTrading({
   const waitingBroadcast = transfer
     ? pending.find((p) => p.transferId === transfer.id)
     : undefined;
-  if (booting || bootError || !config)
-    return (
+  if (booting || bootError || !config) {
+    const unavailable = (
       <section
         className="live-shell live-availability-shell"
         aria-label="Live swap availability"
@@ -1099,7 +1104,13 @@ export default function LiveTrading({
         </div>
       </section>
     );
-  return (
+    return publicActivity && view === "activity" ? (
+      <TransactionsView initialScope={activityScope} personal={unavailable} />
+    ) : (
+      unavailable
+    );
+  }
+  const content = (
     <section className="live-shell">
       <div className="live-topbar">
         <div>
@@ -2299,6 +2310,11 @@ export default function LiveTrading({
         </Modal>
       )}
     </section>
+  );
+  return publicActivity && tab === "activity" ? (
+    <TransactionsView initialScope={activityScope} personal={content} />
+  ) : (
+    content
   );
 }
 function LiveTokenPicker({

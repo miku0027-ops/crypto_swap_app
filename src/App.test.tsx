@@ -10,6 +10,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "./App";
+import { publicFeed } from "../test/fixtures/transactions";
 
 beforeEach(() => {
   localStorage.clear();
@@ -80,7 +81,7 @@ describe("Hoplane preview UI", () => {
       within(success).getByRole("button", { name: "View activity" }),
     );
     expect(
-      screen.getByRole("heading", { name: "Your activity." }),
+      await screen.findByRole("heading", { name: "Your activity." }),
     ).toBeTruthy();
     expect(screen.getByText("DEMO")).toBeTruthy();
     const saved = JSON.parse(localStorage.getItem("hoplane.activity")!);
@@ -333,6 +334,11 @@ describe("Hoplane live and demo entry points", () => {
     };
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input);
+      if (path.endsWith("/transactions"))
+        return new Response(JSON.stringify(publicFeed()), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
       const body = path.endsWith("/config")
         ? config
         : path.endsWith("/auth/session")
@@ -363,6 +369,15 @@ describe("Hoplane live and demo entry points", () => {
       screen.queryByRole("heading", { name: "A clearer view of your assets." }),
     ).toBeNull();
     await user.click(within(nav).getByRole("link", { name: "Transactions" }));
+    expect(
+      await screen.findByRole("heading", { name: "Transactions" }),
+    ).toBeTruthy();
+    expect(
+      screen
+        .getByRole("tab", { name: "Network activity" })
+        .getAttribute("aria-selected"),
+    ).toBe("true");
+    await user.click(screen.getByRole("tab", { name: "Your history" }));
     expect(
       screen.getByRole("heading", { name: "Every real move." }),
     ).toBeTruthy();

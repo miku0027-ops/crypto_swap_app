@@ -21,6 +21,8 @@ This checklist records implementation scope. It does not certify production read
 
 ## Implemented live web flow
 
+- [x] Public Relay transaction table with shared SSE snapshots, polling fallback, source attribution, freshness/error states, exact amounts, explorer evidence and search/network/status filters; published through a small Sites Worker.
+
 - [x] Backend availability/capability states and a separately labeled demo entry point.
 - [x] Installed EVM wallet sign-in, account-change invalidation, sign-out, and per-device sessions.
 - [x] Provider-backed source/destination network and token selection, verified asset search, and custom EVM recipient.

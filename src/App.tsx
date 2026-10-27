@@ -70,6 +70,7 @@ import {
   validRecipient,
 } from "./lib/trade";
 import { loadSettings, loadActivity, loadFavorites } from "./lib/storage";
+import TransactionsView from "./components/TransactionsPage";
 import type { Asset, Settings, Wallet, Activity } from "./lib/types";
 type Experience = "live" | "demo";
 const loadExperience = (): Experience => {
@@ -128,6 +129,9 @@ export default function App() {
   const [page, setPage] = useState<Page>(pageFromLocation),
     [mode, setMode] = useState<"swap" | "buy" | "sell">("swap"),
     [dialog, setDialog] = useState<Dialog>(null);
+  const [activityScope, setActivityScope] = useState<"network" | "personal">(
+    "network",
+  );
   const [from, setFrom] = useState<Asset>(() => defaultAsset("from")),
     [to, setTo] = useState<Asset>(() => defaultAsset("to")),
     [amount, setAmount] = useState("0.1");
@@ -207,7 +211,8 @@ export default function App() {
       window.removeEventListener("hashchange", syncLocation);
     };
   }, []);
-  const navigate = (next: Page) => {
+  const navigate = (next: Page, scope: "network" | "personal" = "network") => {
+    if (next === "activity") setActivityScope(scope);
     setPage(next);
     const hash = pageHref(next);
     if (location.hash !== hash)
@@ -485,6 +490,8 @@ export default function App() {
             <HelpView />
           ) : (
             <LiveTrading
+              publicActivity
+              activityScope={activityScope}
               onDemo={() => switchExperience("demo")}
               onViewChange={(view) =>
                 navigate(
@@ -493,6 +500,7 @@ export default function App() {
                     : view === "activity"
                       ? "activity"
                       : "swap",
+                  view === "activity" ? "personal" : "network",
                 )
               }
               view={
@@ -906,7 +914,11 @@ export default function App() {
             </section>
           </>
         ) : page === "activity" ? (
-          <ActivityView activity={activity} />
+          <TransactionsView
+            initialScope={activityScope}
+            personalLabel="Practice history"
+            personal={<ActivityView activity={activity} />}
+          />
         ) : page === "portfolio" ? (
           <PortfolioView
             wallet={wallet}
@@ -1311,7 +1323,7 @@ export default function App() {
                 className="primary-button"
                 onClick={() => {
                   setDialog(null);
-                  navigate("activity");
+                  navigate("activity", "personal");
                 }}
               >
                 View activity

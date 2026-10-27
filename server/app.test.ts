@@ -15,6 +15,8 @@ import { ZERO_ADDRESS } from "./validation.js";
 import { AppError } from "./errors.js";
 import { VaultsService } from "./vaults.js";
 import { AccountResourcesService } from "./account-resources.js";
+import { PublicTransactionsService } from "./public-transactions.js";
+import { publicFeed } from "../test/fixtures/transactions";
 const account = privateKeyToAccount(`0x${"1".repeat(64)}`);
 const other = privateKeyToAccount(`0x${"2".repeat(64)}`);
 const target = "0x3333333333333333333333333333333333333333";
@@ -52,6 +54,7 @@ let app: Awaited<ReturnType<typeof buildApp>>,
   vaultPositions: ReturnType<typeof vi.fn>,
   appBalance: ReturnType<typeof vi.fn>,
   recoveryBalances: ReturnType<typeof vi.fn>,
+  publicSnapshot: ReturnType<typeof vi.fn>,
   headers: Record<string, string>;
 let config: ReturnType<typeof readConfig>;
 async function signIn(who = account) {
@@ -207,6 +210,7 @@ beforeEach(async () => {
     appBalance,
     recovery: recoveryBalances,
   } as unknown as AccountResourcesService;
+  publicSnapshot = vi.fn(async () => publicFeed(clock));
   app = await buildApp({
     config,
     store,
@@ -214,6 +218,9 @@ beforeEach(async () => {
     rpc,
     vaults,
     accountResources,
+    publicTransactions: {
+      snapshot: publicSnapshot,
+    } as unknown as PublicTransactionsService,
     now: () => clock,
   });
   headers = await signIn();
@@ -223,6 +230,29 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 describe("backend HTTP integration", () => {
+  it("serves public network activity without a wallet session or owner selection", async () => {
+    const response = await app.inject("/api/transactions");
+    expect(response.statusCode).toBe(200);
+    expect(response.json().source.scope).toBe("public-network-activity");
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.headers["set-cookie"]).toBeUndefined();
+    expect(publicSnapshot).toHaveBeenCalledWith();
+  });
+  it.each([
+    "/api/transactions?user=alice",
+    "/api/transactions?url=https://evil.example",
+    "/api/transactions/stream?apiKey=secret",
+  ])("rejects arbitrary public activity parameters: %s", async (url) => {
+    const response = await app.inject(url);
+    expect(response.statusCode).toBe(400);
+    expect(publicSnapshot).not.toHaveBeenCalled();
+  });
+  it("sanitizes unexpected public activity errors", async () => {
+    publicSnapshot.mockRejectedValueOnce(new Error("private-feed-debug-value"));
+    const response = await app.inject("/api/transactions");
+    expect(response.statusCode).toBe(500);
+    expect(response.body).not.toContain("private-feed-debug-value");
+  });
   it("returns the public vault catalog without requiring wallet sign-in", async () => {
     const response = await app.inject("/api/vaults");
     expect(response.statusCode).toBe(200);

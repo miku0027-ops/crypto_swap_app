@@ -47,10 +47,15 @@ export const isResourcePage = (page: NavigationPage): boolean =>
   ].includes(page);
 export function pageFromLocation(): NavigationPage {
   const value = location.hash.replace(/^#(?:company\/|\/)/, "");
+  if (value === "transactions") return "activity";
   return isNavigationPage(value) ? value : "swap";
 }
 export const pageHref = (page: NavigationPage): string =>
-  isCompanyPage(page) ? `#company/${page}` : `#/${page}`;
+  page === "activity"
+    ? "#/transactions"
+    : isCompanyPage(page)
+      ? `#company/${page}`
+      : `#/${page}`;
 export const PRIMARY_NAVIGATION = [
   { page: "swap", label: "Swap" },
   { page: "vaults", label: "Vaults" },

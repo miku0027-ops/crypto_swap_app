@@ -34,6 +34,8 @@ Open `http://localhost:8080`. `npm run preview` serves only the static Vite buil
 
 The updated interface includes Swap, Vaults, Transactions, Solutions, Products, Developers, Company, and App Resources. Header and mobile navigation support active states, keyboard focus, appearance controls, and shareable pages. Trading fields, disabled actions, recipient validation, and selected controls use higher-contrast light/dark tokens.
 
+Transactions opens a public Relay network feed with From/To amounts, sender/recipient references, deposit/fill explorer links, reported statuses, fill timing, filters, and pause/resume controls. Server-sent events deliver shared provider snapshots; automatic polling handles interrupted streams. Wallet history and practice history stay in separate tabs. Network activity includes transactions from other apps and is never presented as Hoplane volume. [Live transactions](docs/LIVE-TRANSACTIONS.md) documents its data contract and operating requirements.
+
 The documentation library indexes all **148 pages** in Relay's public index reviewed on **2026-10-27**. Articles open on the official documentation site; Hoplane's explanatory pages describe its own implementation and distinguish provider-managed workflows. [The coverage inventory](docs/RELAY-COVERAGE.md) records every observed navigation destination and remaining integration boundaries.
 
 Vaults puts Your Positions above a searchable, sortable Top Vaults table. Wallet sign-in stays on the page; owner-scoped positions and catalog data load independently. The table uses validated provider APY, underlying WETH amounts, and optional USD estimates with freshness labels. The static preview shows only documented reference contracts when the API is unavailable; balances and yields remain unavailable. [Vault data and units](docs/VAULT-DATA.md) records the source and meaning of each metric.
@@ -66,7 +68,9 @@ The deployment configuration targets Firebase project **`hoplane-b9ac1`**:
 
 The production container was built and smoke-tested locally against the real Firestore emulator, including wallet sign-in, session cookies, CSRF rejection, and logout. Firestore integration tests cover cross-client transactions, account isolation, expiry, and deny-all client rules. A working GCP deployment identity and Relay API key were not available, so Cloud Run deployment and on-chain settlement remain unverified. The supplied Firebase web API key is public client configuration, not a backend credential, and is unnecessary for the current server-owned data model.
 
-A static Sites preview cannot run this Node backend. It can host the demo; a functional live workspace needs a deployed API with compatible origin and cookie behavior. Merely setting a cross-site backend URL does not make browser authentication work. Prefer the same-origin Firebase rewrite or serve both from Cloud Run.
+The Sites preview now runs a small Worker for public transaction snapshots and streaming, with the existing SPA embedded as static assets. Build its separate artifact with `npm run build:site`. It does not run the authenticated Node backend: wallet sessions, trading, sync and vault positions still need the GCP API. Merely setting a cross-site backend URL does not make browser authentication work. Prefer the same-origin Firebase rewrite or serve both from Cloud Run.
+
+The public activity feed currently uses keyless Requests v2 at a 60-second refresh interval. Relay retires that endpoint on **November 24, 2026**. Configure `RELAY_API_KEY` as a server/Worker secret to select Requests v3 (10-second shared snapshots); it is required before the sunset. Keys are never included in browser builds or feed responses. Provider rate limits may delay updates; those states remain visible.
 
 ## Provider references
 

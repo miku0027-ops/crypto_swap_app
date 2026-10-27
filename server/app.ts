@@ -15,6 +15,12 @@ import { RelayService, type QuoteDraft } from "./relay.js";
 import { RpcService } from "./rpc.js";
 import { VaultsService } from "./vaults.js";
 import { AccountResourcesService } from "./account-resources.js";
+import { Readable } from "node:stream";
+import { PublicTransactionsService } from "./public-transactions.js";
+import {
+  transactionStream,
+  TRANSACTION_STREAM_HEADERS,
+} from "./transaction-stream.js";
 import {
   parseInput,
   networkSchema,
@@ -61,6 +67,7 @@ interface Dependencies {
   rpc?: RpcService;
   vaults?: VaultsService;
   accountResources?: AccountResourcesService;
+  publicTransactions?: PublicTransactionsService;
   now?: () => number;
   logger?: boolean;
   serveStatic?: boolean;
@@ -139,6 +146,20 @@ export async function buildApp(deps: Dependencies) {
       await limit("relay:account-resources", 40);
     });
   const auth = new AuthService(store, config, now);
+  const publicTransactions =
+    deps.publicTransactions ??
+    new PublicTransactionsService(
+      { apiKey: config.relayApiKey },
+      fetch,
+      now,
+      async () => {
+        await limit("relay:all", 240);
+        await limit("relay:public-transactions", 12);
+      },
+    );
+  const streamClients = new Map<string, number>();
+  const streamControllers = new Set<AbortController>();
+  let activeStreams = 0;
   const policyFingerprint = digest(
     JSON.stringify({
       execution: config.enableExecution,
@@ -180,6 +201,9 @@ export async function buildApp(deps: Dependencies) {
       ? (_address, hop) => hop < deps.trustProxyHops!
       : false,
     genReqId: () => randomUUID(),
+  });
+  app.addHook("preClose", async () => {
+    for (const controller of streamControllers) controller.abort();
   });
   const cookieName =
     config.nodeEnv === "production" ? "__session" : "hoplane_session";
@@ -408,6 +432,53 @@ export async function buildApp(deps: Dependencies) {
   app.get("/api/vaults", async (req) => {
     parseInput(z.object({}).strict(), req.query);
     return vaults.pools();
+  });
+  app.get("/api/transactions", async (req) => {
+    parseInput(z.object({}).strict(), req.query);
+    return publicTransactions.snapshot();
+  });
+  app.get("/api/transactions/stream", async (req, reply) => {
+    parseInput(z.object({}).strict(), req.query);
+    if (activeStreams >= 100 || (streamClients.get(req.ip) ?? 0) >= 3)
+      throw new AppError(
+        429,
+        "TRANSACTIONS_STREAM_LIMIT",
+        "Too many activity connections. Please retry shortly.",
+        60,
+      );
+    await limit(`transaction-stream:${req.ip}`, 6);
+    if (activeStreams >= 100 || (streamClients.get(req.ip) ?? 0) >= 3)
+      throw new AppError(
+        429,
+        "TRANSACTIONS_STREAM_LIMIT",
+        "Too many activity connections. Please retry shortly.",
+        60,
+      );
+    const cancel = new AbortController();
+    streamControllers.add(cancel);
+    streamClients.set(req.ip, (streamClients.get(req.ip) ?? 0) + 1);
+    activeStreams++;
+    reply.raw.once("close", () => {
+      cancel.abort();
+      activeStreams--;
+      streamControllers.delete(cancel);
+      const remaining = (streamClients.get(req.ip) ?? 1) - 1;
+      if (remaining) streamClients.set(req.ip, remaining);
+      else streamClients.delete(req.ip);
+    });
+    const stream = transactionStream(
+      () => publicTransactions.snapshot(),
+      cancel.signal,
+    );
+    reply.hijack();
+    for (const [name, value] of Object.entries(reply.getHeaders()))
+      if (value !== undefined) reply.raw.setHeader(name, value);
+    reply.raw.writeHead(200, TRANSACTION_STREAM_HEADERS);
+    const source = Readable.fromWeb(
+      stream as import("node:stream/web").ReadableStream,
+    );
+    source.once("error", () => reply.raw.destroy());
+    source.pipe(reply.raw);
   });
   app.get("/api/vaults/positions", async (req) => {
     const current = await session(req);
