@@ -13,6 +13,8 @@ import { AuthService, type Session } from "./auth.js";
 import type { Store } from "./store.js";
 import { RelayService, type QuoteDraft } from "./relay.js";
 import { RpcService } from "./rpc.js";
+import { VaultsService } from "./vaults.js";
+import { AccountResourcesService } from "./account-resources.js";
 import {
   parseInput,
   networkSchema,
@@ -57,6 +59,8 @@ interface Dependencies {
   store: Store;
   relay?: RelayService;
   rpc?: RpcService;
+  vaults?: VaultsService;
+  accountResources?: AccountResourcesService;
   now?: () => number;
   logger?: boolean;
   serveStatic?: boolean;
@@ -122,6 +126,15 @@ export async function buildApp(deps: Dependencies) {
         else await limit("relay:metadata", 100);
       }),
     rpc = deps.rpc ?? new RpcService({});
+  const vaults =
+    deps.vaults ??
+    new VaultsService(fetch, now, () => limit("vaults:upstream", 60));
+  const accountResources =
+    deps.accountResources ??
+    new AccountResourcesService(fetch, now, async () => {
+      await limit("relay:all", 240);
+      await limit("relay:account-resources", 40);
+    });
   const auth = new AuthService(store, config, now);
   const policyFingerprint = digest(
     JSON.stringify({
@@ -389,6 +402,39 @@ export async function buildApp(deps: Dependencies) {
     authentication: "siwe-eoa",
     serverTime: now(),
   }));
+  app.get("/api/vaults", async (req) => {
+    parseInput(z.object({}).strict(), req.query);
+    return vaults.pools();
+  });
+  app.get("/api/vaults/positions", async (req) => {
+    const current = await session(req);
+    parseInput(z.object({}).strict(), req.query);
+    await limit(`vaults:positions:${owner(current)}`, 20);
+    return vaults.positions(current.address);
+  });
+  app.get("/api/account/app-balance", async (req) => {
+    const current = await session(req);
+    parseInput(z.object({}).strict(), req.query);
+    await limit(`account-reads:${owner(current)}`, 20);
+    return accountResources.appBalance(current.address);
+  });
+  app.get("/api/account/recovery-balances", async (req) => {
+    const current = await session(req);
+    const { ownerChainId } = parseInput(
+      z
+        .object({
+          ownerChainId: z
+            .string()
+            .regex(/^[1-9]\d{0,15}$/)
+            .transform(Number)
+            .pipe(chainIdSchema),
+        })
+        .strict(),
+      req.query,
+    );
+    await limit(`account-reads:${owner(current)}`, 20);
+    return accountResources.recovery(current.address, ownerChainId);
+  });
   app.get("/api/chains", async (req) => {
     const { network } = parseInput(networkQuery, req.query);
     checkNetwork(network);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowDown,
   ArrowDownLeft,
@@ -17,7 +17,6 @@ import {
   Info,
   Layers,
   Loader2,
-  Menu,
   Monitor,
   Moon,
   Search,
@@ -34,13 +33,21 @@ import {
   RefreshCw,
   LogOut,
   Compass,
-  BookOpen,
-  Palette,
-  BriefcaseBusiness,
 } from "lucide-react";
 import { Modal, TokenIcon, ChainIcon } from "./components/Primitives";
 import LiveTrading from "./components/LiveTrading";
 import CompanyView from "./components/CompanyViews";
+import AppNavigation from "./components/AppNavigation";
+import ResourceView from "./components/ResourceViews";
+import VaultsView from "./components/VaultsView";
+import {
+  isCompanyPage,
+  isNavigationPage,
+  isResourcePage,
+  pageFromLocation,
+  pageHref,
+} from "./lib/navigation";
+import type { NavigationPage as Page } from "./lib/navigation";
 import {
   ExploreView,
   ActivityView,
@@ -64,19 +71,6 @@ import {
 } from "./lib/trade";
 import { loadSettings, loadActivity, loadFavorites } from "./lib/storage";
 import type { Asset, Settings, Wallet, Activity } from "./lib/types";
-type CompanyPage = "blog" | "brand" | "jobs";
-type Page = "swap" | "explore" | "activity" | "portfolio" | "help" | CompanyPage;
-const isCompanyPage = (page: Page): page is CompanyPage =>
-  page === "blog" || page === "brand" || page === "jobs";
-const pageFromLocation = (): Page => {
-  const match = location.hash.match(/^#company\/(blog|brand|jobs)$/);
-  return match ? match[1] as CompanyPage : "swap";
-};
-const companyLinks = [
-  { page: "blog", label: "Blog", icon: BookOpen },
-  { page: "brand", label: "Brand Assets", icon: Palette },
-  { page: "jobs", label: "Jobs", icon: BriefcaseBusiness },
-] as const;
 type Experience = "live" | "demo";
 const loadExperience = (): Experience => {
   try {
@@ -133,12 +127,7 @@ export default function App() {
   const [experience, setExperience] = useState<Experience>(loadExperience);
   const [page, setPage] = useState<Page>(pageFromLocation),
     [mode, setMode] = useState<"swap" | "buy" | "sell">("swap"),
-    [dialog, setDialog] = useState<Dialog>(null),
-    [mobileNav, setMobileNav] = useState(false);
-  const [companyOpen, setCompanyOpen] = useState(false);
-  const companyRef = useRef<HTMLDivElement>(null);
-  const companyTriggerRef = useRef<HTMLButtonElement>(null);
-  const mobileMenuRef = useRef<HTMLButtonElement>(null);
+    [dialog, setDialog] = useState<Dialog>(null);
   const [from, setFrom] = useState<Asset>(() => defaultAsset("from")),
     [to, setTo] = useState<Asset>(() => defaultAsset("to")),
     [amount, setAmount] = useState("0.1");
@@ -210,8 +199,6 @@ export default function App() {
   useEffect(() => {
     const syncLocation = () => {
       setPage(pageFromLocation());
-      setCompanyOpen(false);
-      setMobileNav(false);
     };
     window.addEventListener("popstate", syncLocation);
     window.addEventListener("hashchange", syncLocation);
@@ -220,39 +207,29 @@ export default function App() {
       window.removeEventListener("hashchange", syncLocation);
     };
   }, []);
-  useEffect(() => {
-    const closeOutside = (event: PointerEvent) => {
-      if (companyOpen && !companyRef.current?.contains(event.target as Node)) {
-        setCompanyOpen(false);
-      }
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      if (companyOpen) {
-        setCompanyOpen(false);
-        companyTriggerRef.current?.focus();
-      } else if (mobileNav) {
-        setMobileNav(false);
-        mobileMenuRef.current?.focus();
-      }
-    };
-    document.addEventListener("pointerdown", closeOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [companyOpen, mobileNav]);
   const navigate = (next: Page) => {
     setPage(next);
-    setMobileNav(false);
-    setCompanyOpen(false);
-    const hash = isCompanyPage(next) ? `#company/${next}` : "";
-    if (isCompanyPage(next) || location.hash.startsWith("#company/")) {
-      const url = `${location.pathname}${location.search}${hash}`;
-      if (location.hash !== hash) window.history.pushState({}, "", url);
-    }
+    const hash = pageHref(next);
+    if (location.hash !== hash)
+      window.history.pushState(
+        {},
+        "",
+        `${location.pathname}${location.search}${hash}`,
+      );
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const chooseTheme = (theme: "light" | "dark") => {
+    if (experience === "demo")
+      setSettings((current) => ({ ...current, theme }));
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem("hoplane.theme", theme);
+    } catch {
+      /* Storage can be restricted. */
+    }
+    window.dispatchEvent(
+      new CustomEvent("hoplane:theme-change", { detail: { theme } }),
+    );
   };
   const switchExperience = (next: Experience) => {
     setExperience(next);
@@ -262,7 +239,7 @@ export default function App() {
   };
   const pickAsset = (asset: Asset) => {
     setTo(asset);
-    setPage("swap");
+    navigate("swap");
     setMode("swap");
     setToast(
       `Destination set to ${asset.symbol} on ${chainFor(asset.chainId).name}`,
@@ -453,142 +430,56 @@ export default function App() {
   };
   return (
     <div className={`app-shell experience-${experience}`}>
-      <header className="site-header">
-        <button
-          className="brand"
-          onClick={() => navigate("swap")}
-          aria-label="Hoplane home"
-        >
-          <span className="brand-mark">
-            <svg viewBox="0 0 40 40">
-              <path
-                d="M4 26 20 7h13L17 26zm12 8L31 16h7L23 34z"
-                fill="currentColor"
-              />
-            </svg>
-          </span>
-          hoplane
-        </button>
-        <nav
-          id="main-navigation"
-          className={mobileNav ? "main-nav open" : "main-nav"}
-          aria-label="Main navigation"
-        >
-          {(
-            (experience === "live"
-              ? ["swap", "activity", "portfolio"]
-              : ["swap", "explore", "activity", "portfolio"]) as Page[]
-          ).map((item) => (
-            <button
-              key={item}
-              className={page === item ? "nav-link active" : "nav-link"}
-              onClick={() => navigate(item)}
-            >
-              {item === "swap"
-                ? experience === "live"
-                  ? "Swap"
-                  : "Swap & bridge"
-                : item === "portfolio" && experience === "live"
-                  ? "Account"
-                  : item[0].toUpperCase() + item.slice(1)}
-            </button>
-          ))}
-          <button
-            className="nav-link mobile-help"
-            onClick={() => navigate("help")}
-          >
-            Help
-          </button>
-          <div className="company-nav" ref={companyRef}>
-            <button
-              ref={companyTriggerRef}
-              className={`nav-link company-trigger ${isCompanyPage(page) ? "active" : ""}`}
-              aria-expanded={companyOpen}
-              aria-controls="company-navigation"
-              onClick={() => setCompanyOpen((open) => !open)}
-            >
-              Company
-              <ChevronDown size={15} aria-hidden="true" />
-            </button>
-            {companyOpen && (
-              <div id="company-navigation" className="company-menu">
-                {companyLinks.map(({ page: destination, label, icon: Icon }) => (
-                  <a
-                    key={destination}
-                    href={`#company/${destination}`}
-                    aria-current={page === destination ? "page" : undefined}
-                    onClick={(event) => {
-                      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                      event.preventDefault();
-                      navigate(destination);
-                    }}
-                  >
-                    <Icon size={17} aria-hidden="true" />
-                    <span>{label}</span>
-                    <ArrowUpRight size={13} className="company-link-arrow" aria-hidden="true" />
-                  </a>
-                ))}
-              </div>
-            )}
-          </div>
-        </nav>
-        <div className="header-actions">
-          <div
-            className="experience-switch"
-            role="group"
-            aria-label="Experience mode"
-          >
-            {(["live", "demo"] as const).map((item) => (
-              <button
-                key={item}
-                type="button"
-                aria-label={`${item === "live" ? "Live" : "Demo"} mode`}
-                aria-pressed={experience === item}
-                onClick={() => switchExperience(item)}
-              >
-                {item === "live" ? "Live" : "Demo"}
-              </button>
-            ))}
-          </div>
-          {experience === "demo" && (
-            <>
-              <button
-                className="network-status"
-                onClick={() => setDialog("settings")}
-              >
-                <span />
-                {settings.testnet ? "Testnet preview" : "Mainnet preview"}
-                <ChevronDown size={12} />
-              </button>
-              <button
-                className="header-wallet"
-                onClick={() => setDialog(wallet ? "account" : "wallet")}
-              >
-                <WalletIcon size={16} />
-                <span>
-                  {wallet ? shortAddress(wallet.address) : "Connect wallet"}
-                </span>
-              </button>
-            </>
-          )}
-          <button
-            ref={mobileMenuRef}
-            className="icon-button mobile-menu"
-            aria-label="Toggle navigation"
-            aria-expanded={mobileNav}
-            aria-controls="main-navigation"
-            onClick={() => {
-              setMobileNav((v) => !v);
-              setCompanyOpen(false);
-            }}
-          >
-            {mobileNav ? <X /> : <Menu />}
-          </button>
-        </div>
-      </header>
-      <main>
+      <AppNavigation
+        page={page}
+        experience={experience}
+        walletLabel={wallet ? shortAddress(wallet.address) : undefined}
+        onNavigate={navigate}
+        onExperience={switchExperience}
+        onWallet={() =>
+          experience === "demo"
+            ? setDialog(wallet ? "account" : "wallet")
+            : navigate("portfolio")
+        }
+        onTheme={chooseTheme}
+      />
+      <main id="main-content" tabIndex={-1}>
         {isCompanyPage(page) ? (
           <CompanyView page={page} />
+        ) : page === "vaults" ? (
+          <VaultsView
+            onSwap={() => navigate("swap")}
+            onAccount={() => {
+              setExperience("live");
+              navigate("portfolio");
+            }}
+          />
+        ) : isResourcePage(page) ? (
+          <ResourceView
+            page={page}
+            onNavigate={(next: string) => {
+              if (isNavigationPage(next)) navigate(next);
+            }}
+            onAccount={() => {
+              setExperience("live");
+              navigate("portfolio");
+            }}
+          />
+        ) : page === "explore" ? (
+          experience === "demo" ? (
+            <ExploreView onSelect={pickAsset} />
+          ) : (
+            <ResourceView
+              page="solutions-chains"
+              onNavigate={(next: string) => {
+                if (isNavigationPage(next)) navigate(next);
+              }}
+              onAccount={() => {
+                setExperience("live");
+                navigate("portfolio");
+              }}
+            />
+          )
         ) : experience === "live" ? (
           page === "help" ? (
             <HelpView />
@@ -710,6 +601,12 @@ export default function App() {
                                 : "0x…"
                             }
                             autoComplete="off"
+                            aria-invalid={Boolean(recipient && recipientError)}
+                            aria-describedby={
+                              recipient && recipientError
+                                ? "recipient-error"
+                                : "recipient-hint"
+                            }
                           />
                           <button
                             className="icon-button"
@@ -722,8 +619,15 @@ export default function App() {
                             <X size={16} />
                           </button>
                         </div>
+                        <small id="recipient-hint" className="recipient-hint">
+                          Enter the full destination wallet address.
+                        </small>
                         {recipient && recipientError && (
-                          <small className="error-text">
+                          <small
+                            id="recipient-error"
+                            className="error-text"
+                            role="alert"
+                          >
                             Enter a valid {chainFor(to.chainId).name} address.
                           </small>
                         )}
@@ -1001,8 +905,6 @@ export default function App() {
               </button>
             </section>
           </>
-        ) : page === "explore" ? (
-          <ExploreView onSelect={pickAsset} />
         ) : page === "activity" ? (
           <ActivityView activity={activity} />
         ) : page === "portfolio" ? (

@@ -13,6 +13,8 @@ import {
 import { RpcService } from "./rpc.js";
 import { ZERO_ADDRESS } from "./validation.js";
 import { AppError } from "./errors.js";
+import { VaultsService } from "./vaults.js";
+import { AccountResourcesService } from "./account-resources.js";
 const account = privateKeyToAccount(`0x${"1".repeat(64)}`);
 const other = privateKeyToAccount(`0x${"2".repeat(64)}`);
 const target = "0x3333333333333333333333333333333333333333";
@@ -46,6 +48,10 @@ let app: Awaited<ReturnType<typeof buildApp>>,
   quote: ReturnType<typeof vi.fn>,
   status: ReturnType<typeof vi.fn>,
   verify: ReturnType<typeof vi.fn>,
+  vaultPools: ReturnType<typeof vi.fn>,
+  vaultPositions: ReturnType<typeof vi.fn>,
+  appBalance: ReturnType<typeof vi.fn>,
+  recoveryBalances: ReturnType<typeof vi.fn>,
   headers: Record<string, string>;
 let config: ReturnType<typeof readConfig>;
 async function signIn(who = account) {
@@ -169,7 +175,47 @@ beforeEach(async () => {
     verifyTransaction: verify,
     balance: vi.fn(async () => ({ assets: [] })),
   } as unknown as RpcService;
-  app = await buildApp({ config, store, relay, rpc, now: () => clock });
+  vaultPools = vi.fn(async () => ({
+    pools: [],
+    fetchedAt: clock,
+    truncated: false,
+    lifecycle: { depositsEnabled: false },
+  }));
+  vaultPositions = vi.fn(async (address: string) => ({
+    address,
+    positions: [],
+    fetchedAt: clock,
+    truncated: false,
+  }));
+  appBalance = vi.fn(async (address: string) => ({
+    address,
+    balances: [],
+    fetchedAt: clock,
+  }));
+  recoveryBalances = vi.fn(async (address: string, ownerChainId: number) => ({
+    address,
+    ownerChainId,
+    balances: [],
+    hasMore: false,
+    fetchedAt: clock,
+  }));
+  const vaults = {
+    pools: vaultPools,
+    positions: vaultPositions,
+  } as unknown as VaultsService;
+  const accountResources = {
+    appBalance,
+    recovery: recoveryBalances,
+  } as unknown as AccountResourcesService;
+  app = await buildApp({
+    config,
+    store,
+    relay,
+    rpc,
+    vaults,
+    accountResources,
+    now: () => clock,
+  });
   headers = await signIn();
 });
 afterEach(async () => {
@@ -177,6 +223,130 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 describe("backend HTTP integration", () => {
+  it("returns the public vault catalog without requiring wallet sign-in", async () => {
+    const response = await app.inject("/api/vaults");
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      pools: [],
+      lifecycle: { depositsEnabled: false },
+    });
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(vaultPools).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    "/api/vaults?address=0x1111111111111111111111111111111111111111",
+    "/api/vaults?url=https://untrusted.example",
+    "/api/vaults?limit=1000",
+  ])("rejects unexpected public vault query parameters: %s", async (url) => {
+    const response = await app.inject(url);
+    expect(response.statusCode).toBe(400);
+    expect(vaultPools).not.toHaveBeenCalled();
+  });
+  it.each([
+    "/api/vaults/positions",
+    "/api/account/app-balance",
+    "/api/account/recovery-balances?ownerChainId=1",
+  ])("requires authentication for private provider data: %s", async (url) => {
+    const response = await app.inject(url);
+    expect(response.statusCode).toBe(401);
+    expect(vaultPositions).not.toHaveBeenCalled();
+    expect(appBalance).not.toHaveBeenCalled();
+    expect(recoveryBalances).not.toHaveBeenCalled();
+  });
+  it("binds private provider requests to the signed-in wallet on every account", async () => {
+    const otherHeaders = await signIn(other);
+    for (const [requestHeaders, address] of [
+      [headers, account.address],
+      [otherHeaders, other.address],
+    ] as const) {
+      const positionResponse = await app.inject({
+        url: "/api/vaults/positions",
+        headers: requestHeaders,
+      });
+      expect(positionResponse.statusCode).toBe(200);
+      expect(positionResponse.json().address).toBe(address);
+      expect(vaultPositions).toHaveBeenLastCalledWith(address);
+      const balanceResponse = await app.inject({
+        url: "/api/account/app-balance",
+        headers: requestHeaders,
+      });
+      expect(balanceResponse.statusCode).toBe(200);
+      expect(balanceResponse.json().address).toBe(address);
+      expect(appBalance).toHaveBeenLastCalledWith(address);
+      const recoveryResponse = await app.inject({
+        url: "/api/account/recovery-balances?ownerChainId=1",
+        headers: requestHeaders,
+      });
+      expect(recoveryResponse.statusCode).toBe(200);
+      expect(recoveryResponse.json()).toMatchObject({
+        address,
+        ownerChainId: 1,
+      });
+      expect(recoveryBalances).toHaveBeenLastCalledWith(address, 1);
+    }
+  });
+  it.each([
+    "/api/vaults/positions?address=0x3333333333333333333333333333333333333333",
+    "/api/vaults/positions?url=https://untrusted.example",
+    "/api/account/app-balance?address=0x3333333333333333333333333333333333333333",
+    "/api/account/app-balance?url=https://untrusted.example",
+    "/api/account/recovery-balances?ownerChainId=1&address=0x3333333333333333333333333333333333333333",
+    "/api/account/recovery-balances?ownerChainId=1&url=https://untrusted.example",
+  ])("rejects client-selected owner or upstream URL: %s", async (url) => {
+    const response = await app.inject({ url, headers });
+    expect(response.statusCode).toBe(400);
+    expect(vaultPositions).not.toHaveBeenCalled();
+    expect(appBalance).not.toHaveBeenCalled();
+    expect(recoveryBalances).not.toHaveBeenCalled();
+  });
+  it.each([
+    "",
+    "0",
+    "-1",
+    "01",
+    "1.0",
+    "1e3",
+    "9007199254740992",
+    "12345678901234567",
+  ])("rejects noncanonical or unsafe owner chain id %s", async (value) => {
+    const response = await app.inject({
+      url: `/api/account/recovery-balances?ownerChainId=${encodeURIComponent(value)}`,
+      headers,
+    });
+    expect(response.statusCode).toBe(400);
+    expect(recoveryBalances).not.toHaveBeenCalled();
+  });
+  it("requires a recovery owner chain instead of assuming the transaction network", async () => {
+    const response = await app.inject({
+      url: "/api/account/recovery-balances",
+      headers,
+    });
+    expect(response.statusCode).toBe(400);
+    expect(recoveryBalances).not.toHaveBeenCalled();
+  });
+  it("preserves safe provider failures and hides unexpected provider internals", async () => {
+    appBalance.mockRejectedValueOnce(
+      new AppError(
+        503,
+        "ACCOUNT_PROVIDER_UNAVAILABLE",
+        "Account provider is unavailable.",
+        20,
+      ),
+    );
+    const unavailable = await app.inject({
+      url: "/api/account/app-balance",
+      headers,
+    });
+    expect(unavailable.statusCode).toBe(503);
+    expect(unavailable.json().error.code).toBe("ACCOUNT_PROVIDER_UNAVAILABLE");
+    expect(unavailable.headers["retry-after"]).toBe("20");
+    vaultPools.mockRejectedValueOnce(new Error("secret-provider-debug-value"));
+    const unexpected = await app.inject("/api/vaults");
+    expect(unexpected.statusCode).toBe(500);
+    expect(unexpected.json().error.code).toBe("INTERNAL_ERROR");
+    expect(unexpected.body).not.toContain("secret-provider-debug-value");
+  });
+
   it("returns capabilities, readiness and safe production headers", async () => {
     const c = await app.inject("/api/config");
     expect(c.statusCode).toBe(200);

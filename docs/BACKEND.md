@@ -76,6 +76,10 @@ All paths start with `/api`. Authenticated POST/PUT operations require `X-CSRF-T
 | `GET /ready` | Storage readiness and capability indicators. | Public |
 | `GET /config` | Feature flags, chain IDs, policy limits, auth chain, server time; no secrets. | Public |
 | `GET /chains?network=testnet` | Current allowed EVM chain metadata. | Public |
+| `GET /vaults` | Fixed, validated public vault catalog; wind-down metadata, no deposit execution. | Public |
+| `GET /vaults/positions` | Indexed vault shares belonging only to the signed-in wallet. No arbitrary owner query. | Cookie |
+| `GET /account/app-balance` | Integrator app-fee/sponsorship balances for the signed-in wallet, from Relay mainnet. | Cookie |
+| `GET /account/recovery-balances?ownerChainId=1` | First 20 Relay mainnet Hub recovery balances for the signed-in owner account; explicit owner-chain ID, `hasMore` indication. | Cookie |
 | `POST /currencies` | `{network, search: {chainIds, term?, address?, limit?}}`; verified provider token search. | Public |
 | `POST /auth/challenge` | `{address, chainId}` → `{challengeId, message, expiresAt}`. | Public |
 | `POST /auth/verify` | `{challengeId, signature}` → session JSON plus cookie. | Public |
@@ -123,9 +127,11 @@ The default fixed-window limits below are atomic in the shared store, so they ap
 | Submitted-hash tracking writes, per wallet | 45 |
 | Provider status refresh, per wallet / globally | 45 / 150 |
 | Actual provider metadata requests, globally | 100 |
-| All actual provider requests, globally | 240 |
+| Actual Relay API requests, globally (including account resources; vault index separate) | 240 |
 | Preferences writes, per wallet | 30 |
 | Balance reads, per wallet | 20 |
+| App/recovery balance reads combined, per wallet / actual upstream globally | 20 / 40 |
+| Vault position requests, per wallet / actual vault upstream globally | 20 / 60 |
 
 Metadata caches last 60 seconds for chains and 30 seconds for currency search, coalesce identical in-flight requests, and keep a bounded entry count. Cache hits do not consume provider request budgets. Quotes are not cached across users. Provider status polls reuse a transfer updated within four seconds. RPC chain identity is checked and cached briefly; balance requests use a bounded batch with independent token failures. Application requests have a 32 KiB body limit; upstream response readers are bounded (Relay 2 MiB, RPC 1 MiB) and timed out.
 
@@ -134,6 +140,14 @@ Firestore transactions on hot shared rate-limit keys impose an intentional globa
 `TRUST_PROXY_HOPS=0` is conservative: behind a proxy, users may share its rate-limit bucket. Only configure a nonzero value after checking forwarded headers and ensuring the same trusted ingress topology for every public path. Arbitrarily trusting user-supplied forwarded IPs defeats per-IP limits. Wallet/global limits remain independent of IP resolution.
 
 Security headers on Node responses include CSP, frame blocking, MIME protection, and production HSTS. CSP uses same-origin scripts, no objects/frames, allowed API origins, HTTPS images, and Google font/style hosts; inline styles remain permitted for the current UI. Firebase Hosting supplies matching static-site headers with same-origin `connect-src`. An intentional cross-origin API deployment also needs a matching hosting CSP. API logs contain request IDs and safe error codes; credentials/cookies/signatures and raw request bodies are not logged.
+
+## Read-only provider resources
+
+Vault metadata and positions use a fixed GraphQL query on `https://vaults-api.relay.link/`. App-fee and recovery balances use fixed GET paths on `https://api.relay.link/`; no private provider key is needed for these public reads. Server routes bind private account queries to the authenticated wallet and reject supplied owner addresses, arbitrary URLs, and extra fields. The recovery `ownerChainId` identifies the Relay Hub owner account, not necessarily the deposit chain or Hoplane trading environment.
+
+These services bound responses to 1 MiB, enforce an 8-second timeout, reject redirects, validate response fields, and sanitize upstream failures. Account reads cache for 15 seconds; vault reads cache for 60 seconds. Caches are bounded, wallet-specific when applicable, clone results, and coalesce concurrent identical reads. Shared upstream budgets run only for cache misses. The HTTP response remains `no-store`.
+
+Missing currency metadata and unknown USD values stay null. Display amounts are computed from exact raw units and validated decimals. Vault share balances are not representations of immediately withdrawable underlying assets. No APY, yield guarantee, or deposit action is synthesized. App-fee claims, sponsorship administration, deposit attestation, and recovery execution are not implemented here; those links open the official provider flow for explicit user review.
 
 ## Firestore storage and retention
 

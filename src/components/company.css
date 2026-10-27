@@ -11,8 +11,8 @@
 }
 .company-eyebrow,
 .company-category {
-  font-size: 10px;
-  font-weight: 650;
+  font-size: 12px;
+  font-weight: 700;
   letter-spacing: 1.8px;
   color: var(--muted);
   line-height: 1.5;
@@ -20,7 +20,7 @@
 }
 .company-heading h1 {
   font-family: Manrope, sans-serif;
-  font-weight: 650;
+  font-weight: 750;
   letter-spacing: -2.8px;
   font-size: 58px;
   line-height: 1.15;
@@ -44,6 +44,7 @@
 }
 .company-feature:hover {
   box-shadow: var(--shadow);
+  border-color: var(--focus, #356943);
 }
 .company-feature-copy {
   padding: 44px;
@@ -54,11 +55,11 @@
   font-size: 33px;
   line-height: 1.35;
   letter-spacing: -1.2px;
-  font-weight: 600;
+  font-weight: 700;
   margin: 17px 0;
 }
 .company-feature-copy > p {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.8;
   color: var(--muted);
   max-width: 360px;
@@ -68,10 +69,11 @@
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  font-size: 12px;
-  font-weight: 650;
+  font-size: 14px;
+  font-weight: 700;
   color: var(--text);
   line-height: 1.8;
+  min-height: 44px;
 }
 a.company-text-link:hover {
   text-decoration: underline;
@@ -108,7 +110,7 @@ a.company-text-link:hover {
   width: 310px;
   height: 310px;
 }
-.orbit-two {
+.company-orbit.orbit-two {
   width: 460px;
   height: 460px;
 }
@@ -140,11 +142,11 @@ a.company-text-link:hover {
 .company-section-title h2 {
   font-family: Manrope, sans-serif;
   font-size: 22px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.6px;
 }
 .company-section-title > span {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--muted);
 }
 .company-journal-grid {
@@ -172,12 +174,12 @@ a.company-text-link:hover {
 .company-article h2 {
   font-family: Manrope, sans-serif;
   font-size: 23px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.7px;
   margin: 10px 0 12px;
 }
 .company-article p {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.9;
   color: var(--muted);
   margin: 12px 0;
@@ -188,16 +190,17 @@ a.company-text-link:hover {
 }
 .company-article summary {
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
   margin-top: 24px;
   border-top: 1px solid var(--border);
-  padding: 19px 0 0;
+  padding: 14px 0 0;
   line-height: 1.7;
+  min-height: 48px;
 }
 .company-article details[open] summary > svg {
   transform: rotate(180deg);
@@ -206,12 +209,14 @@ a.company-text-link:hover {
   padding-top: 10px;
 }
 .company-article-body h3 {
-  font-size: 13px;
-  font-weight: 650;
+  font-size: 15px;
+  font-weight: 700;
   margin: 22px 0 8px;
 }
 .company-article-body .company-text-link {
   margin-top: 10px;
+  font-size: 14px;
+  min-height: 44px;
 }
 .company-bottom-note {
   display: flex;
@@ -222,7 +227,7 @@ a.company-text-link:hover {
   max-width: 720px;
 }
 .company-bottom-note p {
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.8;
 }
 .company-assets-grid {
@@ -266,11 +271,11 @@ a.company-text-link:hover {
 }
 .company-asset h2 {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   margin-bottom: 7px;
 }
 .company-asset p {
-  font-size: 10px;
+  font-size: 13px;
   color: var(--muted);
   line-height: 1.7;
 }
@@ -280,13 +285,13 @@ a.company-text-link:hover {
   justify-content: center;
   gap: 9px;
   padding: 11px 14px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control, #859581);
   border-radius: 9px;
   background: var(--surface-soft);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
   line-height: 1.6;
-  min-height: 42px;
+  min-height: 44px;
 }
 .company-download:hover {
   background: var(--lime);
@@ -322,12 +327,12 @@ a.company-text-link:hover {
   padding: 17px;
 }
 .company-swatch h3 {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
   margin-bottom: 6px;
 }
 .company-swatch code {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--muted);
   user-select: all;
 }
@@ -343,12 +348,12 @@ a.company-text-link:hover {
 .company-usage h2 {
   font-family: Manrope, sans-serif;
   font-size: 25px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.7px;
   margin: 17px 0 12px;
 }
 .company-usage p {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.9;
   color: var(--muted);
   max-width: 280px;
@@ -364,11 +369,11 @@ a.company-text-link:hover {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.8;
 }
 .company-usage li strong {
-  font-weight: 600;
+  font-weight: 700;
 }
 .company-usage li span {
   color: var(--muted);
@@ -384,7 +389,7 @@ a.company-text-link:hover {
   padding: 45px;
 }
 .company-careers-hero p {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.9;
   color: var(--muted);
   max-width: 470px;
@@ -429,12 +434,12 @@ a.company-text-link:hover {
 .company-openings h2 {
   font-size: 23px;
   font-family: Manrope, sans-serif;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.5px;
   margin: 12px 0;
 }
 .company-openings p {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.9;
   color: var(--muted);
   max-width: 640px;
@@ -455,19 +460,25 @@ a.company-text-link:hover {
 }
 .company-contribute h2 {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   margin-bottom: 8px;
 }
 .company-contribute p {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.8;
   color: var(--muted);
   max-width: 590px;
 }
 .company-page summary:focus-visible {
-  outline: 2px solid #65994c;
+  outline: 3px solid var(--focus, #356943);
   outline-offset: 5px;
   border-radius: 3px;
+}
+@media (prefers-contrast: more) {
+  .company-page {
+    --muted: var(--text);
+    --border: var(--border-control, #859581);
+  }
 }
 @keyframes company-appear {
   from {
@@ -483,6 +494,9 @@ a.company-text-link:hover {
   .company-page {
     animation: none;
   }
+  .company-page * {
+    transition: none !important;
+  }
 }
 @media (max-width: 850px) {
   .company-page {
@@ -491,6 +505,7 @@ a.company-text-link:hover {
   }
   .company-heading h1 {
     font-size: 47px;
+    font-weight: 750;
   }
   .company-feature-copy {
     padding: 30px;
@@ -540,13 +555,14 @@ a.company-text-link:hover {
     font-size: 42px;
     letter-spacing: -1.8px;
     margin: 12px 0;
+    font-weight: 750;
   }
   .company-heading > p {
     font-size: 14px;
   }
   .company-eyebrow,
   .company-category {
-    font-size: 9px;
+    font-size: 14px;
     letter-spacing: 1.2px;
   }
   .company-feature {
@@ -563,7 +579,7 @@ a.company-text-link:hover {
     width: 245px;
     height: 245px;
   }
-  .orbit-two {
+  .company-orbit.orbit-two {
     width: 350px;
     height: 350px;
   }
@@ -576,7 +592,7 @@ a.company-text-link:hover {
     font-size: 27px;
   }
   .company-feature-copy > p {
-    font-size: 12px;
+    font-size: 14px;
   }
   .company-journal-grid,
   .company-assets-grid {
@@ -610,6 +626,7 @@ a.company-text-link:hover {
   }
   .company-usage p {
     max-width: none;
+    font-size: 14px;
   }
   .company-careers-hero {
     grid-template-columns: 1fr;
@@ -640,7 +657,7 @@ a.company-text-link:hover {
     font-size: 21px;
   }
   .company-openings p {
-    font-size: 12px;
+    font-size: 14px;
   }
   .company-contribute {
     padding: 22px;
@@ -652,5 +669,8 @@ a.company-text-link:hover {
   }
   .company-contribute .company-download {
     width: 100%;
+    min-height: 44px;
+    font-size: 14px;
+    border: 1px solid var(--border-control, #859581);
   }
 }

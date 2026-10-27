@@ -32,6 +32,18 @@ This checklist records implementation scope. It does not certify production read
 
 Live execution supports only **one exact native deposit or one decoded ERC-20 transfer** to an explicitly approved address. The server blocks opaque router calls, token approvals, permits, gasless signatures, unsupported transaction sequences, and non-EVM execution. A quote can be displayable without being executable. Many provider routes may therefore remain unavailable until separately reviewed transaction decoders are implemented.
 
+## Navigation, reference pages, and read-only resources
+
+- [x] Swap, Vaults, Transactions and all observed Solutions, Products, Developers, Company, and App Resources options.
+- [x] Responsive menu with keyboard focus management, theme controls, selected states, and deep links.
+- [x] Wallet-owned transaction search by token/address/hash/reference, source/destination chain filters, and status filters; no unsupported global or ENS search claim.
+- [x] Search/filter directory for all 148 published Relay documentation pages and original capability explanations.
+- [x] Higher-contrast light/dark text and controls, stronger form hierarchy, explicit recipient focus/invalid states, and readable disabled actions.
+- [x] Read-only validated vault catalog and authenticated wallet positions, matching the provider's current wind-down.
+- [x] Owner-scoped integrator app balances and recovery balances; explicit mainnet/read-only labels, unknown-value preservation, and official management links.
+- [x] API availability check, official status link, testnet guidance, EVM explorer lookup, and preview terms/privacy disclosures.
+- [ ] Vault redemption, app-balance deposits/claims, recovery attestation/signing, provider dashboard administration, and complete provider feature parity remain outside the current executable integration. See [coverage](RELAY-COVERAGE.md).
+
 ## Existing demo interface
 
 - [x] Responsive shell, navigation, light/dark theme, accessible dialogs, search, and empty/error states.

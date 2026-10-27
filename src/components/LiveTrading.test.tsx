@@ -148,17 +148,19 @@ describe("Live trading backend boundaries", () => {
     render(<LiveTrading onDemo={onDemo} />);
     expect(
       await screen.findByRole("heading", {
-        name: "The backend isn’t connected yet.",
+        name: "Live trading is unavailable.",
       }),
     ).toBeTruthy();
-    expect(screen.getByText(/Could not reach the backend/)).toBeTruthy();
+    expect(
+      screen.getByText(/Live services aren’t available right now/),
+    ).toBeTruthy();
     expect(onDemo).not.toHaveBeenCalled();
     expect(
       screen.queryByRole("button", { name: "Review live quote" }),
     ).toBeNull();
     await user.click(screen.getByRole("button", { name: "Retry connection" }));
     await screen.findByRole("heading", {
-      name: "The backend isn’t connected yet.",
+      name: "Live trading is unavailable.",
     });
     expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(onDemo).not.toHaveBeenCalled();
@@ -182,7 +184,7 @@ describe("Live trading backend boundaries", () => {
       screen.getByRole("button", { name: "Review live quote" }),
     ).toHaveProperty("disabled", true);
     expect(
-      screen.getByText(/Live quotes are waiting for the server/),
+      screen.getByText(/Live quotes aren’t available in this environment yet/),
     ).toBeTruthy();
     expect(
       fetchMock.mock.calls.some(([url]) => String(url).endsWith("/quotes")),
@@ -637,5 +639,200 @@ describe("Live trading backend boundaries", () => {
       screen.getByRole("button", { name: "Review live quote" }),
     ).toHaveProperty("disabled", false);
     expect(screen.getByText("Quote required")).toBeTruthy();
+  });
+  it("supports keyboard tab navigation with matching focus and panel labels", async () => {
+    const user = userEvent.setup();
+    const onViewChange = vi.fn();
+    const fetchMock = mockApi((path) =>
+      path === "/transfers" ? json({ transfers: [] }) : undefined,
+    );
+    render(<LiveTrading onDemo={vi.fn()} onViewChange={onViewChange} />);
+    await ready();
+    const trade = screen.getByRole("tab", { name: "Swap & bridge" });
+    trade.focus();
+    await user.keyboard("{ArrowRight}");
+    const account = screen.getByRole("tab", {
+      name: "My account",
+      selected: true,
+    });
+    expect(document.activeElement).toBe(account);
+    expect(screen.getByRole("tabpanel", { name: "My account" })).toBeTruthy();
+    await user.keyboard("{End}");
+    expect(document.activeElement).toBe(
+      screen.getByRole("tab", { name: "Activity", selected: true }),
+    );
+    expect(screen.getByRole("tabpanel", { name: "Activity" })).toBeTruthy();
+    await user.keyboard("{Home}");
+    expect(document.activeElement).toBe(trade);
+    expect(
+      screen.getByRole("tabpanel", { name: "Swap & bridge" }),
+    ).toBeTruthy();
+    expect(onViewChange.mock.calls.map(([view]) => view)).toEqual([
+      "account",
+      "activity",
+      "trade",
+    ]);
+    expect(
+      fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/config")),
+    ).toHaveLength(1);
+  });
+
+  it("preserves a menu theme choice when saved preferences arrive later without writing the account", async () => {
+    const user = userEvent.setup();
+    let resolvePreferences!: (value: Response) => void;
+    const preferences = new Promise<Response>((resolve) => {
+      resolvePreferences = resolve;
+    });
+    const fetchMock = mockApi((path) => {
+      if (path === "/config")
+        return json({
+          ...config,
+          capabilities: { ...config.capabilities, sync: true },
+        });
+      if (path === "/preferences") return preferences;
+      return undefined;
+    });
+    render(<LiveTrading onDemo={vi.fn()} />);
+    await ready();
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("hoplane:theme-change", { detail: { theme: "dark" } }),
+      );
+    });
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    await act(async () => {
+      resolvePreferences(
+        json({
+          version: 1,
+          settings: {
+            theme: "light",
+            slippageBps: 50,
+            gasTopup: false,
+            network: "testnet",
+          },
+          favorites: [],
+        }),
+      );
+    });
+    await user.click(screen.getByRole("button", { name: "Live preferences" }));
+    expect(
+      screen.getByRole("combobox", { name: "Synced appearance" }),
+    ).toHaveProperty("value", "dark");
+    expect(localStorage.getItem("hoplane.theme")).toBe("dark");
+    expect(
+      fetchMock.mock.calls.some(([, init]) => init?.method === "PUT"),
+    ).toBe(false);
+  });
+
+  it("identifies an invalid recipient accessibly and blocks quote review until corrected", async () => {
+    const user = userEvent.setup();
+    mockApi();
+    render(<LiveTrading onDemo={vi.fn()} />);
+    await user.type(await ready(), "0.1");
+    const review = screen.getByRole("button", { name: "Review live quote" });
+    expect(review).toHaveProperty("disabled", false);
+    await user.click(
+      screen.getByRole("checkbox", { name: "Send to another wallet" }),
+    );
+    const recipient = screen.getByRole("textbox", {
+      name: "Live recipient address",
+    });
+    await user.type(recipient, "invalid-address");
+    expect(recipient.getAttribute("aria-invalid")).toBe("true");
+    expect(recipient.getAttribute("aria-describedby")).toBe(
+      "live-recipient-hint",
+    );
+    expect(review).toHaveProperty("disabled", true);
+    await user.clear(recipient);
+    await user.type(recipient, ADDRESS);
+    expect(recipient.getAttribute("aria-invalid")).toBe("false");
+    expect(review).toHaveProperty("disabled", false);
+  });
+  it("filters only loaded wallet history by hash, network, status and token, with clear recovery from no matches", async () => {
+    const user = userEvent.setup();
+    const liveQuote = quote();
+    const settledHash = `0x${"a".repeat(64)}`;
+    const first = {
+      ...liveQuote,
+      id: "eth-reference",
+      createdAt: Date.now(),
+      status: "success",
+      txHashes: [settledHash],
+      network: "testnet",
+    };
+    const stableIn = {
+      ...chains[1].currency,
+      address: TOKEN,
+      symbol: "USDC",
+      name: "USD Coin",
+      decimals: 6,
+    };
+    const stableOut = { ...stableIn, chainId: chains[0].id };
+    const second = {
+      ...liveQuote,
+      id: "usdc-reference",
+      createdAt: Date.now(),
+      status: "pending",
+      txHashes: [],
+      network: "testnet",
+      summary: {
+        ...liveQuote.summary,
+        currencyIn: stableIn,
+        currencyOut: stableOut,
+        amountIn: "2000000",
+        amountOut: "1990000",
+      },
+      transactions: [{ ...liveQuote.transactions[0], chainId: chains[1].id }],
+    };
+    const fetchMock = mockApi((path) =>
+      path === "/transfers" ? json({ transfers: [first, second] }) : undefined,
+    );
+    render(<LiveTrading onDemo={vi.fn()} view="activity" />);
+    await screen.findByRole("button", { name: /0.1 ETH → ETH/ });
+    expect(screen.getByText(/Your latest 50 transfers/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /2 USDC → USDC/ })).toBeTruthy();
+    expect(screen.getByText("Completed · provider reported")).toBeTruthy();
+    const search = screen.getByRole("searchbox", {
+      name: "Search your transfers",
+    });
+    await user.type(search, settledHash);
+    expect(screen.queryByRole("button", { name: /2 USDC → USDC/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /0.1 ETH → ETH/ })).toBeTruthy();
+    await user.clear(search);
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Filter source network" }),
+      String(chains[1].id),
+    );
+    expect(screen.queryByRole("button", { name: /0.1 ETH → ETH/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /2 USDC → USDC/ })).toBeTruthy();
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Filter destination network" }),
+      String(chains[1].id),
+    );
+    expect(
+      screen.getByRole("heading", { name: "No matching transfers." }),
+    ).toBeTruthy();
+    expect(screen.queryByText("No live transfers yet.")).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: "Show all transfers" }),
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Filter transfer status" }),
+      "success",
+    );
+    expect(screen.getByRole("button", { name: /0.1 ETH → ETH/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /2 USDC → USDC/ })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    await user.type(search, "usdc");
+    expect(screen.getByRole("button", { name: /2 USDC → USDC/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /0.1 ETH → ETH/ })).toBeNull();
+    await user.clear(search);
+    await user.type(search, TOKEN);
+    expect(screen.getByRole("button", { name: /2 USDC → USDC/ })).toBeTruthy();
+    expect(
+      fetchMock.mock.calls.filter(([url]) =>
+        String(url).endsWith("/transfers"),
+      ),
+    ).toHaveLength(1);
   });
 });

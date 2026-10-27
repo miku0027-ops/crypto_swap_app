@@ -70,6 +70,19 @@ const DEFAULT_PREFS: Preferences = {
   },
   favorites: [],
 };
+function initialPreferences(): Preferences {
+  try {
+    const theme = localStorage.getItem("hoplane.theme");
+    if (theme === "light" || theme === "dark")
+      return {
+        ...DEFAULT_PREFS,
+        settings: { ...DEFAULT_PREFS.settings, theme },
+      };
+  } catch {
+    /* Restricted browser storage does not prevent viewing the app. */
+  }
+  return DEFAULT_PREFS;
+}
 const terminal = (transfer: Transfer) =>
   isTransferSettled(transfer) || transfer.status === "refund";
 const currencyLabel = (c: LiveCurrency) =>
@@ -78,9 +91,33 @@ const getStep = (t: Transfer) =>
   (t as Transfer & { submittedSteps?: Record<string, string> })
     .submittedSteps ?? {};
 function CurrencyMark({ currency }: { currency: LiveCurrency }) {
+  const [failedLogo, setFailedLogo] = useState<string | null>(null);
+  const logo = currency.metadata?.logoURI;
+  const nativeEther =
+    currency.symbol === "ETH" &&
+    currency.address === "0x0000000000000000000000000000000000000000";
   return (
-    <span className="live-currency-mark" aria-hidden="true">
-      {currency.symbol.slice(0, 2)}
+    <span
+      className={`live-currency-mark ${nativeEther ? "native-ether" : ""}`}
+      aria-hidden="true"
+    >
+      {logo && logo.startsWith("https://") && failedLogo !== logo ? (
+        <img
+          src={logo}
+          alt=""
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setFailedLogo(logo)}
+        />
+      ) : nativeEther ? (
+        <svg viewBox="0 0 24 32" width="18" height="25" aria-hidden="true">
+          <path d="M12 0 0 17l12 7 12-7z" fill="white" />
+          <path d="M12 0v24l12-7z" fill="#cdd5f6" />
+          <path d="m0 20 12 12 12-12-12 7z" fill="white" />
+        </svg>
+      ) : (
+        currency.symbol.slice(0, 2)
+      )}
     </span>
   );
 }
@@ -98,7 +135,7 @@ export default function LiveTrading({
     [reload, setReload] = useState(0),
     [booting, setBooting] = useState(true);
   const [session, setSession] = useState<Session | null>(null),
-    [prefs, setPrefs] = useState<Preferences>(DEFAULT_PREFS),
+    [prefs, setPrefs] = useState<Preferences>(initialPreferences),
     [network, setNetwork] = useState<Network>("testnet");
   const [chains, setChains] = useState<LiveChain[]>([]),
     [chainsLoading, setChainsLoading] = useState(false),
@@ -135,6 +172,11 @@ export default function LiveTrading({
     [confirmedPriorHash, setConfirmedPriorHash] = useState(""),
     [receiptBusy, setReceiptBusy] = useState(false),
     [planInvalidated, setPlanInvalidated] = useState(true);
+  const [historySearch, setHistorySearch] = useState(""),
+    [historySource, setHistorySource] = useState("all"),
+    [historyDestination, setHistoryDestination] = useState("all"),
+    [historyStatus, setHistoryStatus] = useState("all");
+  const selectedTheme = useRef<"light" | "dark" | null>(null);
   const currentAccount = useRef(""),
     mounted = useRef(true),
     requestRef = useRef<AbortController | null>(null),
@@ -178,7 +220,26 @@ export default function LiveTrading({
   }, [balanceKey]);
   useEffect(() => {
     document.documentElement.dataset.theme = prefs.settings.theme;
+    try {
+      localStorage.setItem("hoplane.theme", prefs.settings.theme);
+    } catch {
+      /* Theme remains available in memory. */
+    }
   }, [prefs.settings.theme]);
+  useEffect(() => {
+    const changeTheme = (event: Event) => {
+      const theme = (event as CustomEvent<{ theme?: string }>).detail?.theme;
+      if (theme !== "light" && theme !== "dark") return;
+      selectedTheme.current = theme;
+      setPrefs((current) => ({
+        ...current,
+        settings: { ...current.settings, theme },
+      }));
+    };
+    window.addEventListener("hoplane:theme-change", changeTheme);
+    return () =>
+      window.removeEventListener("hoplane:theme-change", changeTheme);
+  }, []);
   useEffect(() => {
     keyRef.current = formKey;
     requestRef.current?.abort();
@@ -202,6 +263,10 @@ export default function LiveTrading({
     setUncertain(session ? uncertainBroadcasts(session.user.address) : []);
     setTransfer(null);
     setTransactions([]);
+    setHistorySearch("");
+    setHistorySource("all");
+    setHistoryDestination("all");
+    setHistoryStatus("all");
   }, [session]);
   useEffect(() => {
     const timer = setInterval(() => setClock(Date.now()), 1000);
@@ -343,7 +408,14 @@ export default function LiveTrading({
     api<Preferences>("/preferences")
       .then((p) => {
         if (!active) return;
-        setPrefs(p);
+        setPrefs(
+          selectedTheme.current
+            ? {
+                ...p,
+                settings: { ...p.settings, theme: selectedTheme.current },
+              }
+            : p,
+        );
         prefVersion.current = p.version;
         setSlippage(String(p.settings.slippageBps / 100));
         setGasTopup(p.settings.gasTopup);
@@ -413,6 +485,87 @@ export default function LiveTrading({
     loadHistory,
     terminal(transfer || ({ status: "prepared" } as Transfer)),
   ]);
+  const sourceId = (item: Transfer) =>
+    item.summary?.currencyIn.chainId ?? item.transactions[0]?.chainId;
+  const destinationId = (item: Transfer) => item.summary?.currencyOut.chainId;
+  const chainLabel = (id: number | undefined) => {
+    const known = chains.find((chain) => chain.id === id);
+    return (
+      known?.displayName ||
+      known?.name ||
+      (id ? `Chain ${id}` : "Network unavailable")
+    );
+  };
+  const historyChainIds = [
+    ...new Set([
+      ...chains.map((chain) => chain.id),
+      ...transactions
+        .flatMap((item) => [sourceId(item), destinationId(item)])
+        .filter((id): id is number => typeof id === "number"),
+    ]),
+  ].sort((a, b) => chainLabel(a).localeCompare(chainLabel(b)));
+  const statusLabel = (item: Transfer) =>
+    isTransferSettled(item)
+      ? "Completed · provider reported"
+      : item.status === "success"
+        ? "Provider success · awaiting hash"
+        : item.status === "prepared"
+          ? "Prepared · not submitted"
+          : item.status === "submitted"
+            ? "Source submitted"
+            : `Provider: ${item.status}`;
+  const historyStatuses = [
+    ...new Set(transactions.map((item) => item.status)),
+  ].sort();
+  const searchTerm = historySearch.trim().toLowerCase();
+  const filteredTransactions = transactions.filter((item) => {
+    if (historySource !== "all" && String(sourceId(item)) !== historySource)
+      return false;
+    if (
+      historyDestination !== "all" &&
+      String(destinationId(item)) !== historyDestination
+    )
+      return false;
+    if (historyStatus !== "all" && item.status !== historyStatus) return false;
+    const providerReference =
+      "relayRequestId" in item && typeof item.relayRequestId === "string"
+        ? item.relayRequestId
+        : "";
+    return (
+      !searchTerm ||
+      [
+        item.id,
+        item.quoteId,
+        providerReference,
+        item.network,
+        item.summary?.currencyIn.symbol,
+        item.summary?.currencyIn.name,
+        item.summary?.currencyIn.address,
+        item.summary?.currencyOut.symbol,
+        item.summary?.currencyOut.name,
+        item.summary?.currencyOut.address,
+        ...item.transactions.flatMap((tx) => [tx.from, tx.to]),
+        ...(item.txHashes || []),
+        ...(item.inTxHashes || []),
+        ...(item.verifiedTxHashes || []),
+        ...(item.reportedTxHashes || []),
+      ].some(
+        (value) =>
+          typeof value === "string" && value.toLowerCase().includes(searchTerm),
+      )
+    );
+  });
+  const historyFiltersActive =
+    !!searchTerm ||
+    historySource !== "all" ||
+    historyDestination !== "all" ||
+    historyStatus !== "all";
+  const clearHistoryFilters = () => {
+    setHistorySearch("");
+    setHistorySource("all");
+    setHistoryDestination("all");
+    setHistoryStatus("all");
+  };
   const sourceChain = chains.find((c) => c.id === fromChain),
     destChain = chains.find((c) => c.id === toChain);
   const remaining = quote
@@ -869,40 +1022,80 @@ export default function LiveTrading({
   const waitingBroadcast = transfer
     ? pending.find((p) => p.transferId === transfer.id)
     : undefined;
-  if (booting)
+  if (booting || bootError || !config)
     return (
-      <section className="live-shell">
-        <div className="live-connection-card" role="status">
-          <Loader2 className="spin" size={30} />
-          <h2>Connecting to Hoplane</h2>
-          <p>Checking service availability and your session.</p>
-        </div>
-      </section>
-    );
-  if (bootError || !config)
-    return (
-      <section className="live-shell">
+      <section
+        className="live-shell live-availability-shell"
+        aria-label="Live swap availability"
+      >
         <div className="live-connection-card">
-          <span className="live-status-icon">
-            <Info size={25} />
-          </span>
-          <h2>The backend isn’t connected yet.</h2>
-          <p>{bootError || "The service configuration is unavailable."}</p>
-          <div className="live-inline-actions">
-            <button
-              className="primary-button"
-              onClick={() => setReload((v) => v + 1)}
-            >
-              <RefreshCw size={16} />
-              Retry connection
-            </button>
-            <button className="secondary-button" onClick={onDemo}>
-              Explore the demo
-            </button>
+          <div className="live-availability-heading">
+            <h1>Swap & bridge</h1>
+            <span className="live-availability-badge">
+              <span />
+              {booting ? "Connecting" : "Live unavailable"}
+            </span>
           </div>
-          <small>
-            This screen won’t substitute simulated prices for a live quote.
-          </small>
+          <div className="live-offline-route" aria-hidden="true">
+            <div>
+              <span>From</span>
+              <strong>Choose a token</strong>
+              <small>Source network</small>
+            </div>
+            <span className="live-offline-arrow">
+              <ArrowDown size={19} />
+            </span>
+            <div>
+              <span>To</span>
+              <strong>Your next destination</strong>
+              <small>Destination network</small>
+            </div>
+          </div>
+          <div
+            className="live-availability-message"
+            role={booting ? "status" : undefined}
+          >
+            <span className="live-status-icon">
+              {booting ? (
+                <Loader2 className="spin" size={22} />
+              ) : (
+                <Info size={22} />
+              )}
+            </span>
+            <div>
+              <h2>
+                {booting
+                  ? "Connecting to Hoplane"
+                  : "Live trading is unavailable."}
+              </h2>
+              <p>
+                {booting
+                  ? "Checking live service availability."
+                  : "Live services aren’t available right now. Retry the connection or explore the demo with sample data."}
+              </p>
+            </div>
+          </div>
+          {!booting && (
+            <>
+              <div className="live-inline-actions">
+                <button className="primary-button" onClick={onDemo}>
+                  Explore the demo
+                  <ArrowRight size={17} />
+                </button>
+                <button
+                  className="secondary-button"
+                  onClick={() => setReload((v) => v + 1)}
+                >
+                  <RefreshCw size={16} />
+                  Retry connection
+                </button>
+              </div>
+              <p className="live-availability-caption">
+                <ShieldCheck size={15} />
+                Demo uses sample data. No real funds move.
+              </p>
+            </>
+          )}
         </div>
       </section>
     );
@@ -934,7 +1127,30 @@ export default function LiveTrading({
               <button
                 key={t}
                 role="tab"
+                id={`live-workspace-tab-${t}`}
+                aria-controls="live-workspace-panel"
+                tabIndex={tab === t ? 0 : -1}
                 aria-selected={tab === t}
+                onKeyDown={(event) => {
+                  const tabs = ["trade", "account", "activity"] as const;
+                  const index = tabs.indexOf(t);
+                  const next =
+                    event.key === "ArrowRight"
+                      ? (index + 1) % tabs.length
+                      : event.key === "ArrowLeft"
+                        ? (index + tabs.length - 1) % tabs.length
+                        : event.key === "Home"
+                          ? 0
+                          : event.key === "End"
+                            ? tabs.length - 1
+                            : -1;
+                  if (next < 0) return;
+                  event.preventDefault();
+                  navigateView(tabs[next]);
+                  document
+                    .getElementById(`live-workspace-tab-${tabs[next]}`)
+                    ?.focus();
+                }}
                 className={tab === t ? "active" : ""}
                 onClick={() => navigateView(t)}
               >
@@ -953,461 +1169,601 @@ export default function LiveTrading({
               <Settings2 size={18} />
             </button>
           </div>
-          {error && (
-            <div className="live-error" role="alert">
-              <Info size={17} />
-              <span>{error}</span>
-              <button aria-label="Dismiss error" onClick={() => setError("")}>
-                <X size={15} />
-              </button>
-            </div>
-          )}
-          {message && (
-            <div className="live-message" role="status">
-              <Check size={16} />
-              <span>{message}</span>
-            </div>
-          )}
-          {tab === "trade" ? (
-            <>
-              <div className="live-form-heading">
-                <div>
-                  <h2>A new destination awaits.</h2>
-                  <p>Choose your source and destination.</p>
-                </div>
-                <select
-                  aria-label="Live network environment"
-                  value={network}
-                  onChange={(e) => setNetwork(e.target.value as Network)}
-                  disabled={executing}
-                >
-                  <option value="testnet">Testnet</option>
-                  <option
-                    value="mainnet"
-                    disabled={!config.networks.mainnet.length}
-                  >
-                    Mainnet
-                  </option>
-                </select>
+          <div
+            id="live-workspace-panel"
+            role="tabpanel"
+            aria-labelledby={`live-workspace-tab-${tab}`}
+          >
+            {error && (
+              <div className="live-error" role="alert">
+                <Info size={17} />
+                <span>{error}</span>
+                <button aria-label="Dismiss error" onClick={() => setError("")}>
+                  <X size={15} />
+                </button>
               </div>
-              {!config.capabilities.quotes && (
-                <div className="live-setup-note">
-                  <Info size={17} />
-                  <span>
-                    Live quotes are waiting for the server’s Relay API key.
-                    Wallet sign-in and available account services can still be
-                    used.
-                  </span>
-                </div>
-              )}
-              {chainsLoading ? (
-                <div className="live-loading" role="status">
-                  <Loader2 className="spin" size={22} />
-                  Loading supported networks…
-                </div>
-              ) : (
-                <>
-                  <div className="live-amount-panel">
-                    <div className="live-amount-head">
-                      <label htmlFor="live-amount">You pay</label>
-                      <select
-                        aria-label="Source network"
-                        value={fromChain}
-                        disabled={executing || !chains.length}
-                        onChange={(e) => {
-                          const id = Number(e.target.value);
-                          setFromChain(id);
-                          setFrom(
-                            chains.find((c) => c.id === id)?.currency || null,
-                          );
-                          setBalance(null);
-                        }}
-                      >
-                        {!chains.length && (
-                          <option value={0}>No networks configured</option>
-                        )}
-                        {chains.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.displayName || c.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="live-amount-line">
-                      <input
-                        id="live-amount"
-                        inputMode="decimal"
-                        autoComplete="off"
-                        placeholder="0.00"
-                        value={amount}
-                        disabled={executing}
-                        onChange={(e) => {
-                          if (
-                            /^\d*\.?\d*$/.test(e.target.value) &&
-                            e.target.value.length <= 90
-                          )
-                            setAmount(e.target.value);
-                        }}
-                      />
-                      <button
-                        className="live-token-button"
-                        aria-label="Select live source token"
-                        disabled={!sourceChain || executing}
-                        onClick={() => setPicker("from")}
-                      >
-                        {from ? (
-                          <>
-                            <CurrencyMark currency={from} />
-                            <strong>{from.symbol}</strong>
-                          </>
-                        ) : (
-                          "Select token"
-                        )}
-                        <ChevronDown size={15} />
-                      </button>
-                    </div>
-                    <div className="live-amount-foot">
-                      <span>
-                        {from
-                          ? currencyLabel(from)
-                          : "Authoritative network catalog"}
-                      </span>
-                      <span>Exact input</span>
-                    </div>
+            )}
+            {message && (
+              <div className="live-message" role="status">
+                <Check size={16} />
+                <span>{message}</span>
+              </div>
+            )}
+            {tab === "trade" ? (
+              <>
+                <div className="live-form-heading">
+                  <div>
+                    <h2>Where to next?</h2>
+                    <p>Choose the assets and networks for your move.</p>
                   </div>
-                  <button
-                    className="live-reverse"
-                    aria-label="Reverse live route"
-                    disabled={!from || !to || executing}
-                    onClick={() => {
-                      setFrom(to);
-                      setTo(from);
-                      setFromChain(toChain);
-                      setToChain(fromChain);
-                      setBalance(null);
-                    }}
-                  >
-                    <ArrowDown size={17} />
-                  </button>
-                  <div className="live-amount-panel live-destination">
-                    <div className="live-amount-head">
-                      <span>You receive</span>
-                      <select
-                        aria-label="Destination network"
-                        value={toChain}
-                        disabled={executing || !chains.length}
-                        onChange={(e) => {
-                          const id = Number(e.target.value);
-                          setToChain(id);
-                          setTo(
-                            chains.find((c) => c.id === id)?.currency || null,
-                          );
-                        }}
-                      >
-                        {!chains.length && (
-                          <option value={0}>No networks configured</option>
-                        )}
-                        {chains.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.displayName || c.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="live-amount-line">
-                      <strong className="live-estimate">
-                        {quote
-                          ? fromBaseUnits(
-                              quote.summary.amountOut,
-                              quote.summary.currencyOut.decimals,
-                            )
-                          : "—"}
-                      </strong>
-                      <button
-                        className="live-token-button"
-                        aria-label="Select live destination token"
-                        disabled={!destChain || executing}
-                        onClick={() => setPicker("to")}
-                      >
-                        {to ? (
-                          <>
-                            <CurrencyMark currency={to} />
-                            <strong>{to.symbol}</strong>
-                          </>
-                        ) : (
-                          "Select token"
-                        )}
-                        <ChevronDown size={15} />
-                      </button>
-                    </div>
-                    <div className="live-amount-foot">
-                      <span>
-                        {to ? currencyLabel(to) : "Choose a destination"}
-                      </span>
-                      <span>{quote ? "Live estimate" : "Quote required"}</span>
-                    </div>
-                  </div>
-                </>
-              )}
-              <label className="live-checkbox">
-                <input
-                  type="checkbox"
-                  checked={customRecipient}
-                  disabled={executing}
-                  onChange={(e) => setCustomRecipient(e.target.checked)}
-                />
-                Send to another wallet
-              </label>
-              {customRecipient && (
-                <label className="live-field">
-                  Recipient address
-                  <input
-                    aria-label="Live recipient address"
-                    placeholder="0x…"
-                    value={recipient}
-                    onChange={(e) => setRecipient(e.target.value.trim())}
+                  <select
+                    aria-label="Live network environment"
+                    value={network}
+                    onChange={(e) => setNetwork(e.target.value as Network)}
                     disabled={executing}
-                  />
-                </label>
-              )}
-              {amount && invalid && (
-                <p className="live-validation" role="alert">
-                  {invalid}
-                </p>
-              )}
-              <div className="live-mini-row">
-                <button onClick={() => setSettingsOpen(true)}>
-                  Slippage {slippage}%<Settings2 size={12} />
-                </button>
-                <span>
-                  <ShieldCheck size={13} />
-                  Non-custodial
-                </span>
-              </div>
-              {!session ? (
-                <button
-                  className="primary-button"
-                  disabled={authBusy}
-                  onClick={connect}
-                >
-                  {authBusy ? (
-                    <Loader2 className="spin" size={17} />
-                  ) : (
-                    <Wallet size={17} />
-                  )}
-                  Connect & verify wallet
-                </button>
-              ) : (
-                <button
-                  className="primary-button"
-                  disabled={
-                    quoteBusy ||
-                    executing ||
-                    !rawAmount ||
-                    !!invalid ||
-                    !from ||
-                    !to ||
-                    !config.capabilities.quotes
-                  }
-                  onClick={getQuote}
-                >
-                  {quoteBusy ? (
-                    <>
-                      <Loader2 className="spin" size={17} />
-                      Finding your route…
-                    </>
-                  ) : (
-                    <>
-                      Review live quote
-                      <ArrowRight size={17} />
-                    </>
-                  )}
-                </button>
-              )}
-              <p className="live-hint">
-                {session
-                  ? `Signed in as ${short(session.user.address)}`
-                  : "Sign-in verifies wallet ownership. It does not approve a transfer."}
-              </p>
-            </>
-          ) : tab === "account" ? (
-            <div className="live-account">
-              <h2>Your account, across devices.</h2>
-              <p>
-                Verified wallet ownership protects your preferences and transfer
-                history.
-              </p>
-              {session ? (
-                <>
-                  <div className="live-address">
-                    <Wallet size={22} />
-                    <span>{short(session.user.address)}</span>
-                    <button
-                      className="icon-button"
-                      aria-label="Copy signed-in address"
-                      onClick={() => copy(session.user.address)}
+                  >
+                    <option value="testnet">Testnet</option>
+                    <option
+                      value="mainnet"
+                      disabled={!config.networks.mainnet.length}
                     >
-                      <Copy size={15} />
-                    </button>
+                      Mainnet
+                    </option>
+                  </select>
+                </div>
+                {!config.capabilities.quotes && (
+                  <div className="live-setup-note">
+                    <Info size={17} />
+                    <span>
+                      Live quotes aren’t available in this environment yet. You
+                      can still sign in and use available account services.
+                    </span>
                   </div>
-                  <div className="live-account-actions">
-                    <button
-                      className="secondary-button"
-                      onClick={() => setSettingsOpen(true)}
-                    >
-                      Synced preferences
-                      <Settings2 size={15} />
-                    </button>
-                    <button
-                      className="secondary-button"
-                      disabled={authBusy}
-                      onClick={disconnect}
-                    >
-                      Sign out
-                      <LogOut size={15} />
-                    </button>
+                )}
+                {chainsLoading ? (
+                  <div className="live-loading" role="status">
+                    <Loader2 className="spin" size={22} />
+                    Loading supported networks…
                   </div>
-                  <div className="live-section-heading">
-                    <div>
-                      <h3>Source asset balance</h3>
-                      <small>
-                        {sourceChain?.name || "Select a network"} ·{" "}
-                        {from?.symbol || "Select a token"}
-                      </small>
+                ) : (
+                  <>
+                    <div className="live-amount-panel">
+                      <div className="live-amount-head">
+                        <label htmlFor="live-amount">You pay</label>
+                        <select
+                          aria-label="Source network"
+                          value={fromChain}
+                          disabled={executing || !chains.length}
+                          onChange={(e) => {
+                            const id = Number(e.target.value);
+                            setFromChain(id);
+                            setFrom(
+                              chains.find((c) => c.id === id)?.currency || null,
+                            );
+                            setBalance(null);
+                          }}
+                        >
+                          {!chains.length && (
+                            <option value={0}>No networks configured</option>
+                          )}
+                          {chains.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.displayName || c.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="live-amount-line">
+                        <input
+                          id="live-amount"
+                          inputMode="decimal"
+                          autoComplete="off"
+                          placeholder="0.00"
+                          value={amount}
+                          disabled={executing}
+                          onChange={(e) => {
+                            if (
+                              /^\d*\.?\d*$/.test(e.target.value) &&
+                              e.target.value.length <= 90
+                            )
+                              setAmount(e.target.value);
+                          }}
+                        />
+                        <button
+                          className="live-token-button"
+                          aria-label="Select live source token"
+                          disabled={!sourceChain || executing}
+                          onClick={() => setPicker("from")}
+                        >
+                          {from ? (
+                            <>
+                              <CurrencyMark currency={from} />
+                              <strong>{from.symbol}</strong>
+                            </>
+                          ) : (
+                            "Select token"
+                          )}
+                          <ChevronDown size={15} />
+                        </button>
+                      </div>
+                      <div className="live-amount-foot">
+                        <span>
+                          {from
+                            ? currencyLabel(from)
+                            : "Authoritative network catalog"}
+                        </span>
+                        <span>Exact input</span>
+                      </div>
                     </div>
                     <button
-                      className="icon-button"
-                      aria-label="Refresh balance"
-                      disabled={
-                        !config.capabilities.balances || balanceLoading || !from
-                      }
-                      onClick={refreshBalance}
+                      className="live-reverse"
+                      aria-label="Reverse live route"
+                      disabled={!from || !to || executing}
+                      onClick={() => {
+                        setFrom(to);
+                        setTo(from);
+                        setFromChain(toChain);
+                        setToChain(fromChain);
+                        setBalance(null);
+                      }}
                     >
-                      <RefreshCw
-                        className={balanceLoading ? "spin" : ""}
-                        size={17}
-                      />
+                      <ArrowDown size={17} />
                     </button>
-                  </div>
-                  {!config.capabilities.balances ? (
-                    <p className="live-hint left">
-                      Balance reads will become available once trusted RPC
-                      endpoints are configured.
-                    </p>
-                  ) : balance?.chainId === fromChain ? (
-                    balance.assets.map((a) => (
-                      <div className="live-balance" key={a.address}>
-                        <strong>{a.symbol}</strong>
+                    <div className="live-amount-panel live-destination">
+                      <div className="live-amount-head">
+                        <span>You receive</span>
+                        <select
+                          aria-label="Destination network"
+                          value={toChain}
+                          disabled={executing || !chains.length}
+                          onChange={(e) => {
+                            const id = Number(e.target.value);
+                            setToChain(id);
+                            setTo(
+                              chains.find((c) => c.id === id)?.currency || null,
+                            );
+                          }}
+                        >
+                          {!chains.length && (
+                            <option value={0}>No networks configured</option>
+                          )}
+                          {chains.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.displayName || c.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="live-amount-line">
+                        <strong className="live-estimate">
+                          {quote
+                            ? fromBaseUnits(
+                                quote.summary.amountOut,
+                                quote.summary.currencyOut.decimals,
+                              )
+                            : "—"}
+                        </strong>
+                        <button
+                          className="live-token-button"
+                          aria-label="Select live destination token"
+                          disabled={!destChain || executing}
+                          onClick={() => setPicker("to")}
+                        >
+                          {to ? (
+                            <>
+                              <CurrencyMark currency={to} />
+                              <strong>{to.symbol}</strong>
+                            </>
+                          ) : (
+                            "Select token"
+                          )}
+                          <ChevronDown size={15} />
+                        </button>
+                      </div>
+                      <div className="live-amount-foot">
                         <span>
-                          {a.error?.message || a.formatted || "Unavailable"}
+                          {to ? currencyLabel(to) : "Choose a destination"}
+                        </span>
+                        <span>
+                          {quote ? "Live estimate" : "Quote required"}
                         </span>
                       </div>
-                    ))
-                  ) : (
-                    <button
-                      className="secondary-button"
-                      disabled={!from || balanceLoading}
-                      onClick={refreshBalance}
-                    >
-                      {balanceLoading
-                        ? "Reading blockchain…"
-                        : "Load current balance"}
-                    </button>
-                  )}
-                  <p className="live-hint left">
-                    This reads the selected source asset on chain. No estimated
-                    fiat portfolio value is substituted.
+                    </div>
+                  </>
+                )}
+                <label className="live-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={customRecipient}
+                    disabled={executing}
+                    onChange={(e) => setCustomRecipient(e.target.checked)}
+                  />
+                  Send to another wallet
+                </label>
+                {customRecipient && (
+                  <label className="live-field">
+                    <span className="live-field-label">
+                      Recipient address{" "}
+                      <span>
+                        {destChain?.displayName ||
+                          destChain?.name ||
+                          "Destination wallet"}
+                      </span>
+                    </span>
+                    <input
+                      aria-label="Live recipient address"
+                      aria-invalid={
+                        recipient.length > 0 && !isEvmAddress(recipient)
+                      }
+                      aria-describedby="live-recipient-hint"
+                      autoComplete="off"
+                      spellCheck={false}
+                      placeholder="0x…"
+                      value={recipient}
+                      onChange={(e) => setRecipient(e.target.value.trim())}
+                      disabled={executing}
+                    />
+                    <small id="live-recipient-hint">
+                      Enter the destination wallet’s complete 0x address.
+                    </small>
+                  </label>
+                )}
+                {amount && invalid && (
+                  <p className="live-validation" role="alert">
+                    {invalid}
                   </p>
-                </>
-              ) : (
-                <button
-                  className="primary-button"
-                  disabled={authBusy}
-                  onClick={connect}
-                >
-                  {authBusy ? "Waiting for wallet…" : "Connect & verify wallet"}
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="live-activity">
-              <div className="live-section-heading">
-                <div>
-                  <h2>Every real move.</h2>
-                  <p>Server-verified transfer history.</p>
+                )}
+                <div className="live-mini-row">
+                  <button onClick={() => setSettingsOpen(true)}>
+                    Slippage {slippage}%<Settings2 size={12} />
+                  </button>
+                  <span>
+                    <ShieldCheck size={13} />
+                    Non-custodial
+                  </span>
                 </div>
-                <button
-                  className="icon-button"
-                  aria-label="Refresh live activity"
-                  disabled={!session || historyBusy}
-                  onClick={loadHistory}
-                >
-                  <RefreshCw className={historyBusy ? "spin" : ""} size={18} />
-                </button>
-              </div>
-              {!session ? (
-                <div className="live-empty">
-                  <History size={32} />
-                  <h3>Sign in to see your transfers.</h3>
+                {!session ? (
                   <button
-                    className="secondary-button"
+                    className="primary-button"
                     disabled={authBusy}
                     onClick={connect}
                   >
+                    {authBusy ? (
+                      <Loader2 className="spin" size={17} />
+                    ) : (
+                      <Wallet size={17} />
+                    )}
                     Connect & verify wallet
                   </button>
-                </div>
-              ) : !transactions.length ? (
-                <div className="live-empty">
-                  <History size={32} />
-                  <h3>No live transfers yet.</h3>
-                  <p>
-                    Confirmed preparations and submitted routes appear here.
-                  </p>
-                </div>
-              ) : (
-                transactions.map((t) => (
+                ) : (
                   <button
-                    className="live-history-row"
-                    key={t.id}
-                    onClick={() => {
-                      setTransfer(t);
-                      setPlanInvalidated(true);
-                      preparedId.current = "";
-                      navigateView("trade");
-                    }}
+                    className="primary-button"
+                    disabled={
+                      quoteBusy ||
+                      executing ||
+                      !rawAmount ||
+                      !!invalid ||
+                      !from ||
+                      !to ||
+                      !config.capabilities.quotes
+                    }
+                    onClick={getQuote}
                   >
-                    <div>
-                      <strong>
-                        {t.summary
-                          ? `${fromBaseUnits(t.summary.amountIn, t.summary.currencyIn.decimals)} ${t.summary.currencyIn.symbol}`
-                          : "Transfer"}
-                      </strong>
-                      <small>
-                        {t.createdAt
-                          ? new Date(t.createdAt).toLocaleString()
-                          : short(t.id)}
-                      </small>
-                    </div>
-                    <span
-                      className={
-                        isTransferSettled(t)
-                          ? "live-success-badge"
-                          : "live-status-badge"
-                      }
-                    >
-                      {isTransferSettled(t)
-                        ? "Completed"
-                        : t.status === "success"
-                          ? "Confirming receipt"
-                          : t.status}
-                    </span>
-                    <ChevronDown size={15} />
+                    {quoteBusy ? (
+                      <>
+                        <Loader2 className="spin" size={17} />
+                        Finding your route…
+                      </>
+                    ) : (
+                      <>
+                        Review live quote
+                        <ArrowRight size={17} />
+                      </>
+                    )}
                   </button>
-                ))
-              )}
-            </div>
-          )}
+                )}
+                <p className="live-hint">
+                  {session
+                    ? `Signed in as ${short(session.user.address)}`
+                    : "Sign-in verifies wallet ownership. It does not approve a transfer."}
+                </p>
+              </>
+            ) : tab === "account" ? (
+              <div className="live-account">
+                <h2>Your account, across devices.</h2>
+                <p>
+                  Verified wallet ownership protects your preferences and
+                  transfer history.
+                </p>
+                {session ? (
+                  <>
+                    <div className="live-address">
+                      <Wallet size={22} />
+                      <span>{short(session.user.address)}</span>
+                      <button
+                        className="icon-button"
+                        aria-label="Copy signed-in address"
+                        onClick={() => copy(session.user.address)}
+                      >
+                        <Copy size={15} />
+                      </button>
+                    </div>
+                    <div className="live-account-actions">
+                      <button
+                        className="secondary-button"
+                        onClick={() => setSettingsOpen(true)}
+                      >
+                        Synced preferences
+                        <Settings2 size={15} />
+                      </button>
+                      <button
+                        className="secondary-button"
+                        disabled={authBusy}
+                        onClick={disconnect}
+                      >
+                        Sign out
+                        <LogOut size={15} />
+                      </button>
+                    </div>
+                    <div className="live-section-heading">
+                      <div>
+                        <h3>Source asset balance</h3>
+                        <small>
+                          {sourceChain?.name || "Select a network"} ·{" "}
+                          {from?.symbol || "Select a token"}
+                        </small>
+                      </div>
+                      <button
+                        className="icon-button"
+                        aria-label="Refresh balance"
+                        disabled={
+                          !config.capabilities.balances ||
+                          balanceLoading ||
+                          !from
+                        }
+                        onClick={refreshBalance}
+                      >
+                        <RefreshCw
+                          className={balanceLoading ? "spin" : ""}
+                          size={17}
+                        />
+                      </button>
+                    </div>
+                    {!config.capabilities.balances ? (
+                      <p className="live-hint left">
+                        Balance reads will become available once trusted RPC
+                        endpoints are configured.
+                      </p>
+                    ) : balance?.chainId === fromChain ? (
+                      balance.assets.map((a) => (
+                        <div className="live-balance" key={a.address}>
+                          <strong>{a.symbol}</strong>
+                          <span>
+                            {a.error?.message || a.formatted || "Unavailable"}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <button
+                        className="secondary-button"
+                        disabled={!from || balanceLoading}
+                        onClick={refreshBalance}
+                      >
+                        {balanceLoading
+                          ? "Reading blockchain…"
+                          : "Load current balance"}
+                      </button>
+                    )}
+                    <p className="live-hint left">
+                      This reads the selected source asset on chain. No
+                      estimated fiat portfolio value is substituted.
+                    </p>
+                  </>
+                ) : (
+                  <button
+                    className="primary-button"
+                    disabled={authBusy}
+                    onClick={connect}
+                  >
+                    {authBusy
+                      ? "Waiting for wallet…"
+                      : "Connect & verify wallet"}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="live-activity">
+                <div className="live-section-heading">
+                  <div>
+                    <h2>Every real move.</h2>
+                    <p>Your latest 50 transfers · this wallet only.</p>
+                  </div>
+                  <button
+                    className="icon-button"
+                    aria-label="Refresh live activity"
+                    disabled={!session || historyBusy}
+                    onClick={loadHistory}
+                  >
+                    <RefreshCw
+                      className={historyBusy ? "spin" : ""}
+                      size={18}
+                    />
+                  </button>
+                </div>
+                {session && (
+                  <div
+                    className="live-history-filters"
+                    aria-label="Filter your transfers"
+                  >
+                    <label className="live-history-search">
+                      <Search size={17} aria-hidden="true" />
+                      <input
+                        type="search"
+                        aria-label="Search your transfers"
+                        placeholder="Token, address, transaction hash, or reference"
+                        value={historySearch}
+                        maxLength={160}
+                        onChange={(event) =>
+                          setHistorySearch(event.target.value)
+                        }
+                      />
+                    </label>
+                    <div className="live-history-filter-grid">
+                      <label>
+                        From network
+                        <select
+                          aria-label="Filter source network"
+                          value={historySource}
+                          onChange={(event) =>
+                            setHistorySource(event.target.value)
+                          }
+                        >
+                          <option value="all">All networks</option>
+                          {historyChainIds.map((id) => (
+                            <option key={id} value={id}>
+                              {chainLabel(id)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        To network
+                        <select
+                          aria-label="Filter destination network"
+                          value={historyDestination}
+                          onChange={(event) =>
+                            setHistoryDestination(event.target.value)
+                          }
+                        >
+                          <option value="all">All networks</option>
+                          {historyChainIds.map((id) => (
+                            <option key={id} value={id}>
+                              {chainLabel(id)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Status
+                        <select
+                          aria-label="Filter transfer status"
+                          value={historyStatus}
+                          onChange={(event) =>
+                            setHistoryStatus(event.target.value)
+                          }
+                        >
+                          <option value="all">All statuses</option>
+                          {historyStatuses.map((status) => (
+                            <option key={status} value={status}>
+                              {status === "success"
+                                ? "Provider success"
+                                : status[0]?.toUpperCase() + status.slice(1)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                    <div className="live-history-filter-summary">
+                      <span role="status">
+                        {filteredTransactions.length} of {transactions.length}{" "}
+                        transfers
+                      </span>
+                      <button
+                        onClick={clearHistoryFilters}
+                        disabled={!historyFiltersActive}
+                      >
+                        Clear filters
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {!session ? (
+                  <div className="live-empty">
+                    <History size={32} />
+                    <h3>Sign in to see your transfers.</h3>
+                    <button
+                      className="secondary-button"
+                      disabled={authBusy}
+                      onClick={connect}
+                    >
+                      Connect & verify wallet
+                    </button>
+                  </div>
+                ) : historyBusy && !transactions.length ? (
+                  <div className="live-loading" role="status">
+                    <Loader2 className="spin" size={21} />
+                    Loading your transfers…
+                  </div>
+                ) : !transactions.length ? (
+                  <div className="live-empty">
+                    <History size={32} />
+                    <h3>No live transfers yet.</h3>
+                    <p>
+                      Confirmed preparations and submitted routes appear here.
+                    </p>
+                  </div>
+                ) : !filteredTransactions.length ? (
+                  <div className="live-empty">
+                    <Search size={30} />
+                    <h3>No matching transfers.</h3>
+                    <p>
+                      Try another token, transaction hash, or network
+                      combination.
+                    </p>
+                    <button
+                      className="secondary-button"
+                      onClick={clearHistoryFilters}
+                    >
+                      Show all transfers
+                    </button>
+                  </div>
+                ) : (
+                  filteredTransactions.map((t) => (
+                    <button
+                      className="live-history-row"
+                      key={t.id}
+                      onClick={() => {
+                        setTransfer(t);
+                        setPlanInvalidated(true);
+                        preparedId.current = "";
+                        navigateView("trade");
+                      }}
+                    >
+                      <div>
+                        <strong>
+                          {t.summary
+                            ? `${fromBaseUnits(t.summary.amountIn, t.summary.currencyIn.decimals)} ${t.summary.currencyIn.symbol}`
+                            : "Transfer"}
+                          {t.summary
+                            ? ` → ${t.summary.currencyOut.symbol}`
+                            : ""}
+                        </strong>
+                        <span className="live-history-route">
+                          {chainLabel(sourceId(t))} <ArrowRight size={12} />{" "}
+                          {chainLabel(destinationId(t))}
+                        </span>
+                        <small>
+                          {t.createdAt
+                            ? new Date(t.createdAt).toLocaleString()
+                            : short(t.id)}
+                        </small>
+                      </div>
+                      <span
+                        className={
+                          isTransferSettled(t)
+                            ? "live-success-badge"
+                            : "live-status-badge"
+                        }
+                      >
+                        {statusLabel(t)}
+                      </span>
+                      <ChevronDown size={15} />
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
         <aside className="live-sidebar">
           <div className="live-security-card">
@@ -1420,15 +1776,15 @@ export default function LiveTrading({
             <ul>
               <li>
                 <Check size={14} />
-                Amounts validated by the backend
+                Check the assets, networks, and recipient
               </li>
               <li>
                 <Check size={14} />
-                Quotes expire before stale execution
+                Review the minimum you’ll receive
               </li>
               <li>
                 <Check size={14} />
-                Only configured routes can execute
+                Confirm directly in your wallet
               </li>
             </ul>
             <button onClick={onDemo}>
@@ -1782,6 +2138,7 @@ export default function LiveTrading({
               value={prefs.settings.theme}
               onChange={(e) => {
                 const theme = e.target.value as "light" | "dark";
+                selectedTheme.current = theme;
                 setPrefs((p) => ({ ...p, settings: { ...p.settings, theme } }));
                 document.documentElement.dataset.theme = theme;
               }}

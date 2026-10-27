@@ -30,6 +30,14 @@ APP_ORIGIN=http://localhost:8080 ALLOWED_ORIGINS=http://localhost:8080 npm start
 
 Open `http://localhost:8080`. `npm run preview` serves only the static Vite build and does not start the API. Node's built-in SQLite module may print an experimental warning on Node 24; production uses Firestore instead.
 
+## Navigation and reference coverage
+
+The updated interface includes Swap, Vaults, Transactions, Solutions, Products, Developers, Company, and App Resources. Header and mobile navigation support active states, keyboard focus, appearance controls, and shareable pages. Trading fields, disabled actions, recipient validation, and selected controls use higher-contrast light/dark tokens.
+
+The documentation library indexes all **148 pages** in Relay's public index reviewed on **2026-10-27**. Articles open on the official documentation site; Hoplane's explanatory pages describe its own implementation and distinguish provider-managed workflows. [The coverage inventory](docs/RELAY-COVERAGE.md) records every observed navigation destination and remaining integration boundaries.
+
+Vaults are read-only: current Relay documentation says new deposits are closed and the existing withdrawal UI remains available until December 31, 2026. Signed-in users can read indexed vault positions, integrator app-fee balances, and Relay Hub recovery balances through owner-scoped backend endpoints. Recovery/app-fee data comes from Relay's mainnet API, independently of the trading environment. Deposits, claims, attestations, and withdrawals continue on the official provider interface; Hoplane does not sign those operations.
+
 ## Backend and live workspace
 
 - Server-created, single-use Sign-In with Ethereum challenges verify wallet ownership. Sessions use an HTTP-only cookie, expiry, hashed token storage, and CSRF/origin checks.

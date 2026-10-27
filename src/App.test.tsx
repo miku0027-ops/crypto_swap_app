@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "./App";
 
@@ -183,7 +189,9 @@ describe("Hoplane preview UI", () => {
   it("filters networks and uses the chosen destination in the swap form", async () => {
     const user = userEvent.setup();
     render(<App />);
-    await user.click(screen.getByRole("button", { name: "Explore" }));
+    await user.click(screen.getByRole("button", { name: "Open navigation" }));
+    await user.click(screen.getByRole("button", { name: "App Resources" }));
+    await user.click(screen.getByRole("link", { name: /Explore networks/ }));
     await user.type(
       screen.getByRole("textbox", { name: "Search networks" }),
       "Solana",
@@ -275,7 +283,7 @@ describe("Hoplane live and demo entry points", () => {
     ).toBe("true");
     expect(
       await screen.findByRole("heading", {
-        name: "The backend isn’t connected yet.",
+        name: "Live trading is unavailable.",
       }),
     ).toBeTruthy();
     expect(screen.queryByText("Preview mode · No funds move")).toBeNull();
@@ -286,7 +294,7 @@ describe("Hoplane live and demo entry points", () => {
     await user.click(screen.getByRole("button", { name: "Retry connection" }));
     expect(
       await screen.findByRole("heading", {
-        name: "The backend isn’t connected yet.",
+        name: "Live trading is unavailable.",
       }),
     ).toBeTruthy();
     expect(fetchMock.mock.calls.length).toBeGreaterThan(initialCalls);
@@ -301,7 +309,7 @@ describe("Hoplane live and demo entry points", () => {
     await user.click(screen.getByRole("button", { name: "Live mode" }));
     expect(
       await screen.findByRole("heading", {
-        name: "The backend isn’t connected yet.",
+        name: "Live trading is unavailable.",
       }),
     ).toBeTruthy();
     expect(localStorage.getItem("hoplane.experience")).toBe("live");
@@ -347,27 +355,27 @@ describe("Hoplane live and demo entry points", () => {
       ).length;
     const initialBootCalls = bootCalls();
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
-    await user.click(within(nav).getByRole("button", { name: "Account" }));
+    await user.click(screen.getByRole("button", { name: "Account" }));
     expect(
       screen.getByRole("heading", { name: "Your account, across devices." }),
     ).toBeTruthy();
     expect(
       screen.queryByRole("heading", { name: "A clearer view of your assets." }),
     ).toBeNull();
-    await user.click(within(nav).getByRole("button", { name: "Activity" }));
+    await user.click(within(nav).getByRole("link", { name: "Transactions" }));
     expect(
       screen.getByRole("heading", { name: "Every real move." }),
     ).toBeTruthy();
     expect(
       screen.queryByRole("heading", { name: "Your activity." }),
     ).toBeNull();
-    await user.click(within(nav).getByRole("button", { name: "Swap" }));
+    await user.click(within(nav).getByRole("link", { name: "Swap" }));
     expect(screen.getByRole("textbox", { name: "You pay" })).toBeTruthy();
     await user.click(screen.getByRole("tab", { name: "Activity" }));
     expect(
-      within(nav).getByRole("button", { name: "Activity" }).className,
+      within(nav).getByRole("link", { name: "Transactions" }).className,
     ).toContain("active");
-    await user.click(within(nav).getByRole("button", { name: "Swap" }));
+    await user.click(within(nav).getByRole("link", { name: "Swap" }));
     expect(screen.getByRole("textbox", { name: "You pay" })).toBeTruthy();
     expect(bootCalls()).toBe(initialBootCalls);
   });
@@ -391,7 +399,7 @@ describe("Hoplane live and demo entry points", () => {
     render(<App />);
     expect(
       await screen.findByRole("heading", {
-        name: "The backend isn’t connected yet.",
+        name: "Live trading is unavailable.",
       }),
     ).toBeTruthy();
     expect(localStorage.getItem("hoplane.experience")).toBe("live");
@@ -399,71 +407,174 @@ describe("Hoplane live and demo entry points", () => {
   });
 });
 
-describe("Company navigation", () => {
-  it("opens Blog, Brand Assets, and Jobs from the Company disclosure", async () => {
+describe("Complete navigation", () => {
+  it("moves from demo resources into real wallet sign-in instead of the demo portfolio", async () => {
+    window.history.replaceState({}, "", "/#/app-balance");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async (input: RequestInfo | URL) =>
+          new Response(
+            JSON.stringify(
+              String(input).endsWith("/config")
+                ? {
+                    capabilities: {
+                      quotes: false,
+                      execution: false,
+                      balances: false,
+                      sync: false,
+                      fiat: false,
+                    },
+                    networks: { testnet: [], mainnet: [] },
+                    authChainId: 1,
+                    maxSlippageBps: 300,
+                    quoteTtlSeconds: 30,
+                  }
+                : String(input).endsWith("/auth/session")
+                  ? { user: null }
+                  : { chains: [] },
+            ),
+            { headers: { "Content-Type": "application/json" } },
+          ),
+      ),
+    );
     const user = userEvent.setup();
     render(<App />);
-    const company = screen.getByRole("button", { name: "Company" });
-    expect(company.getAttribute("aria-expanded")).toBe("false");
+    await user.click(
+      await screen.findByRole("button", { name: "Connect & sign in" }),
+    );
+    expect(localStorage.getItem("hoplane.experience")).toBe("live");
+    expect(
+      await screen.findByRole("heading", {
+        name: "Your account, across devices.",
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "A clearer view of your assets." }),
+    ).toBeNull();
+  });
+
+  it("opens Company destinations, preserves article navigation, and exposes selected state", async () => {
+    const user = userEvent.setup();
+    render(<App />);
     const destinations = [
       { label: "Blog", heading: "Blog", hash: "#company/blog" },
-      { label: "Brand Assets", heading: "Brand assets", hash: "#company/brand" },
+      {
+        label: "Brand Assets",
+        heading: "Brand assets",
+        hash: "#company/brand",
+      },
       { label: "Jobs", heading: "Careers", hash: "#company/jobs" },
     ];
     for (const destination of destinations) {
-      await user.click(company);
-      expect(company.getAttribute("aria-expanded")).toBe("true");
-      const link = screen.getByRole("link", { name: destination.label });
+      await user.click(screen.getByRole("button", { name: "Open navigation" }));
+      const company = screen.getByRole("button", { name: "Company" });
+      if (company.getAttribute("aria-expanded") !== "true")
+        await user.click(company);
+      const link = screen.getByRole("link", {
+        name: new RegExp(`^${destination.label}`),
+      });
       expect(link.getAttribute("href")).toBe(destination.hash);
       await user.click(link);
-      expect(screen.getByRole("heading", { name: destination.heading, level: 1 })).toBeTruthy();
-      expect(window.location.hash).toBe(destination.hash);
-      expect(company.getAttribute("aria-expanded")).toBe("false");
-      expect(company.className).toContain("active");
+      expect(
+        screen.queryByRole("dialog", { name: "Explore Hoplane" }),
+      ).toBeNull();
+      expect(
+        screen.getByRole("heading", { name: destination.heading, level: 1 }),
+      ).toBeTruthy();
+      expect(location.hash).toBe(destination.hash);
       if (destination.label === "Blog") {
         const article = document.getElementById("building-hoplane")!;
         const scrollIntoView = vi.fn();
         article.scrollIntoView = scrollIntoView;
         await user.click(screen.getByRole("link", { name: /Read the story/ }));
-        expect(screen.getByRole("heading", { name: "Blog", level: 1 })).toBeTruthy();
-        expect(window.location.hash).toBe("#company/blog");
+        expect(
+          screen.getByRole("heading", { name: "Blog", level: 1 }),
+        ).toBeTruthy();
+        expect(location.hash).toBe("#company/blog");
         expect(scrollIntoView).toHaveBeenCalled();
       }
-      await user.click(company);
-      expect(screen.getByRole("link", { name: destination.label }).getAttribute("aria-current")).toBe("page");
+      const trigger = screen.getByRole("button", { name: "Open navigation" });
+      await user.click(trigger);
+      expect(
+        screen
+          .getByRole("link", { name: new RegExp(`^${destination.label}`) })
+          .getAttribute("aria-current"),
+      ).toBe("page");
       await user.keyboard("{Escape}");
-      expect(company.getAttribute("aria-expanded")).toBe("false");
-      expect(document.activeElement).toBe(company);
+      expect(
+        screen.queryByRole("dialog", { name: "Explore Hoplane" }),
+      ).toBeNull();
+      expect(document.activeElement).toBe(trigger);
     }
     await user.click(screen.getByRole("button", { name: "Hoplane home" }));
-    expect(window.location.hash).toBe("");
+    expect(location.hash).toBe("#/swap");
     expect(screen.getByText("Preview mode · No funds move")).toBeTruthy();
   });
 
-  it("closes the nested mobile navigation after selection and dismisses outside clicks", async () => {
+  it("presents every resource group and keeps keyboard focus inside the open menu", async () => {
     const user = userEvent.setup();
     render(<App />);
-    const toggle = screen.getByRole("button", { name: "Toggle navigation" });
-    await user.click(toggle);
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    const company = screen.getByRole("button", { name: "Company" });
-    await user.click(company);
-    await user.click(screen.getByRole("link", { name: "Brand Assets" }));
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    expect(company.getAttribute("aria-expanded")).toBe("false");
-    await user.click(company);
-    await user.click(screen.getByRole("heading", { name: "Brand assets", level: 1 }));
-    expect(company.getAttribute("aria-expanded")).toBe("false");
+    const trigger = screen.getByRole("button", { name: "Open navigation" });
+    await user.click(trigger);
+    const dialog = screen.getByRole("dialog", { name: "Explore Hoplane" });
+    expect(document.body.style.overflow).toBe("hidden");
+    expect(within(dialog).getByRole("link", { name: "Swap" })).toBeTruthy();
+    expect(within(dialog).getByRole("link", { name: "Vaults" })).toBeTruthy();
+    expect(
+      within(dialog).getByRole("link", { name: "Transactions" }),
+    ).toBeTruthy();
+    for (const [section, link] of [
+      ["Solutions", "Commerce & Payments"],
+      ["Products", "RelayKit"],
+      ["Developers", "API Status"],
+      ["Company", "Jobs"],
+      ["App Resources", "Withdraw Funds"],
+    ]) {
+      await user.click(within(dialog).getByRole("button", { name: section }));
+      expect(
+        within(dialog).getByRole("link", { name: new RegExp(`^${link}`) }),
+      ).toBeTruthy();
+    }
+    const first = within(dialog).getByRole("button", { name: "Hoplane home" });
+    const last = within(dialog).getByRole("button", {
+      name: "Use dark appearance",
+    });
+    last.focus();
+    await user.tab();
+    expect(document.activeElement).toBe(first);
+    await user.tab({ shift: true });
+    expect(document.activeElement).toBe(last);
+    await user.click(
+      within(dialog).getByRole("button", { name: "Use dark appearance" }),
+    );
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    await user.keyboard("{Escape}");
+    expect(document.body.style.overflow).not.toBe("hidden");
+    expect(document.activeElement).toBe(trigger);
   });
 
-  it("supports Company deep links in live mode without replacing them with the trading screen", () => {
+  it("supports old and new Company deep links and browser history without mounting live trading", async () => {
     localStorage.setItem("hoplane.experience", "live");
     window.history.replaceState({}, "", "/#company/blog");
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
     render(<App />);
-    expect(screen.getByRole("heading", { name: "Blog", level: 1 })).toBeTruthy();
-    expect(screen.queryByText("Connecting to Hoplane")).toBeNull();
+    expect(
+      screen.getByRole("heading", { name: "Blog", level: 1 }),
+    ).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+    window.history.pushState({}, "", "/#/brand");
+    fireEvent(window, new PopStateEvent("popstate"));
+    expect(
+      await screen.findByRole("heading", { name: "Brand assets", level: 1 }),
+    ).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Open navigation" }));
+    await user.click(screen.getByRole("link", { name: /^Jobs/ }));
+    expect(
+      screen.getByRole("heading", { name: "Careers", level: 1 }),
+    ).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

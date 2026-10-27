@@ -1,0 +1,468 @@
+.skip-link {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 220;
+  padding: 12px 18px;
+  background: var(--text);
+  color: var(--surface);
+  border-radius: 10px;
+  transform: translateY(-160%);
+  font-weight: 700;
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+.hoplane-header {
+  min-height: 84px;
+  display: flex;
+  align-items: center;
+  gap: 34px;
+  padding: 18px 40px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  z-index: 30;
+}
+.hoplane-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0;
+  min-height: 44px;
+  font-family: Manrope, sans-serif;
+  font-size: 29px;
+  font-weight: 800;
+  letter-spacing: -1.65px;
+  color: var(--text);
+  white-space: nowrap;
+}
+.hoplane-brand svg {
+  width: 37px;
+  height: 37px;
+}
+.hoplane-primary-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+}
+.hoplane-primary-nav a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 650;
+  transition:
+    background 0.16s,
+    color 0.16s;
+}
+.hoplane-primary-nav a:hover {
+  background: var(--surface-soft);
+  color: var(--text);
+}
+.hoplane-primary-nav a.active {
+  color: var(--text);
+  background: var(--surface-soft);
+  box-shadow: inset 0 -3px 0 var(--green);
+  font-weight: 750;
+}
+.hoplane-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+.hoplane-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-soft);
+  gap: 2px;
+}
+.hoplane-mode-switch button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 10px;
+  min-height: 44px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.hoplane-mode-switch button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 5px #172b2314;
+}
+.hoplane-wallet-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0 17px;
+  border: 1px solid #c2e179;
+  border-radius: 13px;
+  background: var(--lime);
+  font-weight: 750;
+  font-size: 14px;
+  color: #173026;
+  white-space: nowrap;
+}
+.hoplane-wallet-button:hover {
+  background: #c5eb77;
+  box-shadow: 0 3px 14px #29402b18;
+}
+.hoplane-menu-trigger,
+.hoplane-menu-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 44px;
+  height: 46px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 12px;
+  color: var(--text);
+  font-weight: 700;
+  font-size: 13px;
+  padding: 0 12px;
+}
+.hoplane-menu-trigger:hover,
+.hoplane-menu-close:hover {
+  background: var(--surface-soft);
+  border-color: var(--border-control, var(--muted));
+}
+.hoplane-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 160;
+  background: #0e211b66;
+  backdrop-filter: blur(5px);
+  display: flex;
+  justify-content: flex-end;
+}
+.hoplane-menu-panel {
+  background: var(--surface);
+  color: var(--text);
+  width: min(100%, 470px);
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-shadow: -12px 0 60px #14261f18;
+  animation: hoplane-menu-enter 0.18s ease-out;
+}
+.hoplane-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 24px 18px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.hoplane-menu-nav {
+  padding: 14px 20px 20px;
+}
+.hoplane-menu-primary {
+  display: grid;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+  gap: 4px;
+}
+.hoplane-menu-primary a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 57px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 22px;
+  font-weight: 750;
+  letter-spacing: -0.5px;
+}
+.hoplane-menu-primary a:hover,
+.hoplane-menu-primary a[aria-current="page"] {
+  background: var(--surface-soft);
+}
+.hoplane-current-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--green), transparent 90%);
+}
+.hoplane-menu-section {
+  border-bottom: 1px solid var(--border);
+}
+.hoplane-section-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 62px;
+  width: 100%;
+  padding: 12px 14px;
+  gap: 16px;
+  text-align: left;
+  font-size: 18px;
+  font-weight: 750;
+  color: var(--text);
+  border-radius: 10px;
+}
+.hoplane-section-trigger.active {
+  color: var(--green);
+}
+.hoplane-section-trigger:hover {
+  background: var(--surface-soft);
+}
+.hoplane-section-trigger > svg {
+  color: var(--muted);
+  transition: transform 0.16s;
+}
+.hoplane-menu-links {
+  display: grid;
+  padding: 0 4px 13px;
+  gap: 3px;
+}
+.hoplane-menu-links a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 64px;
+  padding: 11px 14px;
+  border-radius: 11px;
+  border: 1px solid transparent;
+}
+.hoplane-menu-links a:hover {
+  background: var(--surface-soft);
+}
+.hoplane-menu-links a[aria-current="page"] {
+  border-color: var(--border-control, var(--muted));
+  background: var(--surface-soft);
+}
+.hoplane-menu-links strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.5;
+  color: var(--text);
+}
+.hoplane-menu-links small {
+  display: block;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.hoplane-menu-links a > svg {
+  color: var(--muted);
+}
+.hoplane-menu-footer {
+  margin-top: auto;
+  padding: 24px;
+  background: var(--surface-soft);
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 18px;
+}
+.hoplane-menu-footer > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.hoplane-preference-label {
+  font-size: 13px;
+  font-weight: 700;
+}
+.hoplane-theme-switch {
+  display: inline-flex;
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.hoplane-theme-switch button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+.hoplane-theme-switch button[aria-pressed="true"] {
+  background: var(--surface-soft);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border-control, var(--border));
+}
+.hoplane-menu-footer > p {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+@keyframes hoplane-menu-enter {
+  from {
+    opacity: 0.7;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@media (max-width: 1100px) {
+  .hoplane-header {
+    padding: 15px 24px;
+    gap: 22px;
+  }
+  .hoplane-primary-nav a {
+    padding: 0 12px;
+  }
+  .hoplane-menu-trigger span {
+    display: none;
+  }
+  .hoplane-menu-trigger {
+    padding: 0;
+    min-width: 44px;
+  }
+  .hoplane-desktop-mode {
+    display: none;
+  }
+}
+@media (max-width: 720px) {
+  .hoplane-header {
+    padding: 14px 20px;
+    min-height: 76px;
+    gap: 12px;
+  }
+  .hoplane-brand {
+    font-size: 27px;
+    letter-spacing: -1.5px;
+  }
+  .hoplane-brand svg {
+    width: 34px;
+    height: 34px;
+  }
+  .hoplane-primary-nav {
+    display: none;
+  }
+  .hoplane-header-actions {
+    gap: 9px;
+  }
+  .hoplane-wallet-button {
+    min-height: 44px;
+    padding: 0 13px;
+    font-size: 13px;
+  }
+  .hoplane-menu-trigger {
+    border-color: transparent;
+    background: transparent;
+  }
+  .hoplane-menu-panel {
+    width: 100%;
+    box-shadow: none;
+  }
+  .hoplane-menu-header {
+    padding: 16px 20px;
+  }
+  .hoplane-menu-nav {
+    padding: 8px 18px 20px;
+  }
+  .hoplane-menu-primary a {
+    min-height: 62px;
+    font-size: 24px;
+  }
+  .hoplane-section-trigger {
+    min-height: 66px;
+    font-size: 21px;
+  }
+  .hoplane-menu-links strong {
+    font-size: 17px;
+  }
+  .hoplane-menu-links small {
+    font-size: 13px;
+  }
+  .hoplane-menu-footer {
+    padding: 22px 24px;
+  }
+}
+@media (max-width: 390px) {
+  .hoplane-header {
+    padding: 12px;
+    gap: 8px;
+  }
+  .hoplane-brand {
+    font-size: 24px;
+  }
+  .hoplane-brand svg {
+    width: 29px;
+    height: 29px;
+  }
+  .hoplane-header-actions {
+    gap: 4px;
+  }
+  .hoplane-wallet-button {
+    padding: 0 10px;
+    gap: 6px;
+    font-size: 12px;
+  }
+  .hoplane-wallet-button > svg {
+    width: 15px;
+  }
+  .hoplane-menu-nav {
+    padding-inline: 12px;
+  }
+  .hoplane-section-trigger {
+    font-size: 19px;
+  }
+  .hoplane-menu-footer {
+    padding: 20px;
+  }
+  .hoplane-theme-switch button {
+    padding-inline: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hoplane-menu-panel {
+    animation: none;
+  }
+  .hoplane-primary-nav a,
+  .hoplane-section-trigger > svg {
+    transition: none;
+  }
+}
+
+.hoplane-menu-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+@media (max-width: 470px) {
+  .hoplane-menu-header .hoplane-brand span {
+    display: none;
+  }
+  .hoplane-menu-header .hoplane-brand svg {
+    width: 40px;
+    height: 40px;
+  }
+}
