@@ -130,12 +130,17 @@ export function createTransactionsWorker(
             });
           }
           const read = async (): Promise<PublicFeed> => {
-            const cache =
-              injected?.cache ??
-              (
-                globalThis.caches as unknown as
-                  { default?: EdgeCache } | undefined
-              )?.default;
+            let cache = injected?.cache;
+            if (!cache) {
+              try {
+                cache = (
+                  globalThis.caches as unknown as
+                    { default?: EdgeCache } | undefined
+                )?.default;
+              } catch {
+                /* Optional storage may be unavailable in a dispatch namespace. */
+              }
+            }
             const cacheRequest = new Request(
               `${url.origin}/__hoplane_public_feed/${env.RELAY_API_KEY ? "v3" : "v2"}`,
             );
@@ -231,6 +236,14 @@ export function createTransactionsWorker(
           },
         });
       } catch (error) {
+        if (!(error instanceof AppError))
+          console.error("Public activity runtime error", {
+            name: error instanceof Error ? error.name : "unknown",
+            message:
+              !env?.RELAY_API_KEY && error instanceof Error
+                ? error.message.slice(0, 200)
+                : undefined,
+          });
         const e =
           error instanceof AppError
             ? error

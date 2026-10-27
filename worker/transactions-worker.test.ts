@@ -18,6 +18,24 @@ function setup() {
   return { worker, snapshot };
 }
 describe("hosted activity worker", () => {
+  it("serves activity when the host exposes an unavailable optional Cache API", async () => {
+    const prior = Object.getOwnPropertyDescriptor(globalThis, "caches");
+    Object.defineProperty(globalThis, "caches", {
+      configurable: true,
+      get() {
+        throw new Error("Cache API unavailable in dispatch namespace");
+      },
+    });
+    try {
+      const { worker } = setup();
+      expect(
+        (await worker.fetch(new Request(origin + "/api/transactions"))).status,
+      ).toBe(200);
+    } finally {
+      if (prior) Object.defineProperty(globalThis, "caches", prior);
+      else Reflect.deleteProperty(globalThis, "caches");
+    }
+  });
   it("serves the existing site and safe asset content types", async () => {
     const { worker, snapshot } = setup();
     const page = await worker.fetch(new Request(origin + "/"));
