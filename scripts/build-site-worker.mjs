@@ -1,4 +1,4 @@
-import { readFile, readdir, mkdir, copyFile } from "node:fs/promises";
+import { readFile, readdir, mkdir, copyFile, rm } from "node:fs/promises";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { build } from "vite";
@@ -38,6 +38,7 @@ async function walk(directory) {
 }
 await walk(path.join(root, "dist"));
 assert(assets["/index.html"], "Build the web app before packaging the Site");
+await rm(out, { recursive: true, force: true });
 await mkdir(path.join(out, ".openai"), { recursive: true });
 await copyFile(".openai/hosting.json", path.join(out, ".openai/hosting.json"));
 await build({
@@ -56,7 +57,7 @@ await build({
     },
   ],
   build: {
-    outDir: path.join(out, "server"),
+    outDir: path.join(out, "dist/server"),
     emptyOutDir: true,
     target: "es2022",
     minify: true,
@@ -67,7 +68,7 @@ await build({
     },
   },
 });
-const source = await readFile(path.join(out, "server/index.js"), "utf8");
+const source = await readFile(path.join(out, "dist/server/index.js"), "utf8");
 const module = await import(
   `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`
 );
